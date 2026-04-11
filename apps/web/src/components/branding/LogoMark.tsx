@@ -20,7 +20,11 @@ export const logoMarkPaths = [
   "M13.87,38.49c-5.36,3.04-7.76.06-10.63-4.26-4.42-7.09-4.33-16.71.33-23.93,1.21-1.79,2.58-3.92,4.75-4.44,3.24-.55,6.85,1.56,9.24,3.54,4.87,4.2,7.57,11.5,5.23,17.68-1.28,3.38-4.57,9.13-8.91,11.4Z",
 ] as const;
 
-const defaultColors = ["#a273f2", "#8f57ef", "#7c3aed"] as const;
+const defaultColors = [
+  "var(--brand-mark-light)",
+  "var(--brand-mark-mid)",
+  "var(--brand-mark-dark)",
+] as const;
 
 export function LogoMark({ className, size = "md", title, variant = "default" }: LogoMarkProps) {
   const colors =
