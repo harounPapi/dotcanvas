@@ -48,6 +48,7 @@ import { collectActiveTerminalThreadIds } from "../lib/terminalStateCleanup";
 import { deriveOrchestrationBatchEffects } from "../orchestrationEventEffects";
 import { createOrchestrationRecoveryCoordinator } from "../orchestrationRecovery";
 import { deriveReplayRetryDecision } from "../orchestrationRecovery";
+import { isDotCanvasProjectBootstrapping } from "../dotcanvasProject";
 import { getWsRpcClient } from "~/wsRpcClient";
 
 export const Route = createRootRouteWithContext<{
@@ -240,6 +241,12 @@ function EventRouter() {
       }
 
       if (!payload.bootstrapProjectId || !payload.bootstrapThreadId) {
+        return;
+      }
+      const bootstrapProject = useStore
+        .getState()
+        .projects.find((project) => project.id === payload.bootstrapProjectId);
+      if (!isDotCanvasProjectBootstrapping(bootstrapProject)) {
         return;
       }
       setProjectExpanded(payload.bootstrapProjectId, true);

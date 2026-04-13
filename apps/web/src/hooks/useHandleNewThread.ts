@@ -7,6 +7,7 @@ import {
   type DraftThreadState,
   useComposerDraftStore,
 } from "../composerDraftStore";
+import { isDotCanvasProject, isDotCanvasProjectBootstrapping } from "../dotcanvasProject";
 import { newThreadId } from "../lib/utils";
 import { orderItemsByPreferredIds } from "../components/Sidebar.logic";
 import { useStore } from "../store";
@@ -14,7 +15,14 @@ import { useThreadById } from "../storeSelectors";
 import { useUiStateStore } from "../uiStateStore";
 
 export function useHandleNewThread() {
-  const projectIds = useStore(useShallow((store) => store.projects.map((project) => project.id)));
+  const projects = useStore(
+    useShallow((store) => store.projects.filter((project) => isDotCanvasProject(project))),
+  );
+  const projectIds = useStore(
+    useShallow((store) =>
+      store.projects.filter((project) => isDotCanvasProject(project)).map((project) => project.id),
+    ),
+  );
   const projectOrder = useUiStateStore((store) => store.projectOrder);
   const navigate = useNavigate();
   const routeThreadId = useParams({
@@ -42,6 +50,10 @@ export function useHandleNewThread() {
         envMode?: DraftThreadEnvMode;
       },
     ): Promise<void> => {
+      const targetProject = projects.find((project) => project.id === projectId);
+      if (isDotCanvasProjectBootstrapping(targetProject)) {
+        return Promise.resolve();
+      }
       const {
         clearProjectDraftThreadId,
         getDraftThread,
@@ -113,7 +125,7 @@ export function useHandleNewThread() {
         });
       })();
     },
-    [navigate, routeThreadId],
+    [navigate, projects, routeThreadId],
   );
 
   return {

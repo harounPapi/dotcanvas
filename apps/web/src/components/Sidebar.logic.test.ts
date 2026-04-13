@@ -20,7 +20,13 @@ import {
   sortThreadsForSidebar,
   THREAD_JUMP_HINT_SHOW_DELAY_MS,
 } from "./Sidebar.logic";
-import { OrchestrationLatestTurn, ProjectId, ThreadId } from "@t3tools/contracts";
+import {
+  DEFAULT_PROJECT_KIND,
+  DEFAULT_PROJECT_BOOTSTRAP_STATE,
+  OrchestrationLatestTurn,
+  ProjectId,
+  ThreadId,
+} from "@t3tools/contracts";
 import {
   DEFAULT_INTERACTION_MODE,
   DEFAULT_RUNTIME_MODE,
@@ -627,6 +633,9 @@ function makeProject(overrides: Partial<Project> = {}): Project {
     id: ProjectId.makeUnsafe("project-1"),
     name: "Project",
     cwd: "/tmp/project",
+    kind: DEFAULT_PROJECT_KIND,
+    bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+    bootstrapThreadId: null,
     defaultModelSelection: {
       provider: "codex",
       model: "gpt-5.4",

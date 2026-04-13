@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { isElectron } from "../env";
+import { ProjectCreationSurface } from "../components/ProjectCreationSurface";
 import { SidebarTrigger } from "../components/ui/sidebar";
 
 function ChatIndexRouteView() {
@@ -22,9 +23,7 @@ function ChatIndexRouteView() {
       )}
 
       <div className="flex flex-1 items-center justify-center">
-        <div className="text-center">
-          <p className="text-sm">Select a thread or create a new one to get started.</p>
-        </div>
+        <ProjectCreationSurface />
       </div>
     </div>
   );
