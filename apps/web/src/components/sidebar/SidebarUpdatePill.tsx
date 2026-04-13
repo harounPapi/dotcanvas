@@ -1,4 +1,10 @@
-import { DownloadIcon, RotateCwIcon, TriangleAlertIcon, XIcon } from "lucide-react";
+import {
+  Alert01Icon as HugeAlertIcon,
+  Cancel01Icon as HugeCancelIcon,
+  Download01Icon as HugeDownloadIcon,
+  RotateClockwiseIcon as HugeRotateIcon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { isElectron } from "../../env";
@@ -103,7 +109,7 @@ export function SidebarUpdatePill() {
     <div className="flex flex-col gap-1">
       {showArm64Warning && arm64Description && (
         <Alert variant="warning" className="rounded-2xl border-warning/40 bg-warning/8 text-xs">
-          <TriangleAlertIcon />
+          <HugeiconsIcon className="size-4" icon={HugeAlertIcon} />
           <AlertTitle>Intel build on Apple Silicon</AlertTitle>
           <AlertDescription>{arm64Description}</AlertDescription>
         </Alert>
@@ -128,12 +134,12 @@ export function SidebarUpdatePill() {
                 >
                   {action === "install" ? (
                     <>
-                      <RotateCwIcon className="size-3.5" />
+                      <HugeiconsIcon className="size-3.5" icon={HugeRotateIcon} />
                       <span>Restart to update</span>
                     </>
                   ) : state?.status === "downloading" ? (
                     <>
-                      <DownloadIcon className="size-3.5" />
+                      <HugeiconsIcon className="size-3.5" icon={HugeDownloadIcon} />
                       <span>
                         Downloading
                         {typeof state.downloadPercent === "number"
@@ -143,7 +149,7 @@ export function SidebarUpdatePill() {
                     </>
                   ) : (
                     <>
-                      <DownloadIcon className="size-3.5" />
+                      <HugeiconsIcon className="size-3.5" icon={HugeDownloadIcon} />
                       <span>Update available</span>
                     </>
                   )}
@@ -162,7 +168,7 @@ export function SidebarUpdatePill() {
                     className="mr-1 inline-flex size-5 items-center justify-center rounded-md text-primary/60 transition-colors hover:text-primary"
                     onClick={() => setDismissed(true)}
                   >
-                    <XIcon className="size-3.5" />
+                    <HugeiconsIcon className="size-3.5" icon={HugeCancelIcon} />
                   </button>
                 }
               />

@@ -1,5 +1,9 @@
-import type { ComponentType } from "react";
-import { ArchiveIcon, ArrowLeftIcon, Settings2Icon } from "lucide-react";
+import {
+  ArchiveIcon as HugeArchiveIcon,
+  ArrowLeft01Icon as HugeArrowLeftIcon,
+  Setting06Icon as HugeSettingIcon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useNavigate } from "@tanstack/react-router";
 
 import {
@@ -17,10 +21,10 @@ export type SettingsSectionPath = "/settings/general" | "/settings/archived";
 export const SETTINGS_NAV_ITEMS: ReadonlyArray<{
   label: string;
   to: SettingsSectionPath;
-  icon: ComponentType<{ className?: string }>;
+  icon: typeof HugeArchiveIcon;
 }> = [
-  { label: "General", to: "/settings/general", icon: Settings2Icon },
-  { label: "Archive", to: "/settings/archived", icon: ArchiveIcon },
+  { label: "General", to: "/settings/general", icon: HugeSettingIcon },
+  { label: "Archive", to: "/settings/archived", icon: HugeArchiveIcon },
 ];
 
 export function SettingsSidebarNav({ pathname }: { pathname: string }) {
@@ -32,7 +36,6 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
         <SidebarGroup className="px-2 py-3">
           <SidebarMenu>
             {SETTINGS_NAV_ITEMS.map((item) => {
-              const Icon = item.icon;
               const isActive = pathname === item.to;
               return (
                 <SidebarMenuItem key={item.to}>
@@ -46,12 +49,13 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                     }
                     onClick={() => void navigate({ to: item.to, replace: true })}
                   >
-                    <Icon
+                    <HugeiconsIcon
                       className={
                         isActive
                           ? "size-4 shrink-0 text-foreground"
                           : "size-4 shrink-0 text-muted-foreground"
                       }
+                      icon={item.icon}
                     />
                     <span className="truncate">{item.label}</span>
                   </SidebarMenuButton>
@@ -71,7 +75,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
               className="gap-2 px-2 py-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
               onClick={() => window.history.back()}
             >
-              <ArrowLeftIcon className="size-4" />
+              <HugeiconsIcon className="size-4" icon={HugeArrowLeftIcon} />
               <span>Back</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
