@@ -3,8 +3,9 @@ import { FilePlus2Icon, FolderSearchIcon, HistoryIcon, FolderIcon } from "lucide
 import { isElectron } from "../env";
 import { readNativeApi } from "../nativeApi";
 import { useDotCanvasProjectFlow } from "../hooks/useDotCanvasProjectFlow";
+import { LogoMark } from "./branding/LogoMark";
 import { Button } from "./ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card";
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card";
 import {
   Dialog,
   DialogDescription,
@@ -189,11 +190,9 @@ export function ProjectCreationSurface() {
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-10">
-      <div className="max-w-2xl">
-        <p className="text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase">
-          DotCanvas
-        </p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
+      <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
+        <LogoMark size="lg" className="text-foreground" title="DotCanvas" variant="foreground" />
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-foreground">
           Start a project room, not a blank chat.
         </h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
@@ -204,51 +203,36 @@ export function ProjectCreationSurface() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="border-primary/20 shadow-primary/8">
-          <CardHeader>
+          <CardHeader className="gap-4">
             <div className="flex items-center gap-3">
               <div className="rounded-xl bg-primary/10 p-2 text-primary">
                 <FilePlus2Icon className="size-5" />
               </div>
-              <div>
-                <CardTitle className="text-base">Start from scratch</CardTitle>
-                <CardDescription>
-                  Create a brand-new workspace and let DotCanvas bootstrap the room around the real
-                  project goal, context, and root structure.
-                </CardDescription>
-              </div>
+              <CardTitle className="text-base">Start from scratch</CardTitle>
             </div>
+            <CardDescription>
+              Create a brand-new workspace and let DotCanvas bootstrap the room around the real
+              project goal, context, and root structure.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-sm text-muted-foreground">
-              Best when you know the project you want to produce and you want DotCanvas to learn the
-              project first, then shape the workspace around that understanding.
-            </p>
-          </CardContent>
           <CardFooter className="pt-0">
             <Button onClick={() => setStartDialogOpen(true)}>Start here</Button>
           </CardFooter>
         </Card>
 
         <Card className="opacity-80">
-          <CardHeader>
+          <CardHeader className="gap-4">
             <div className="flex items-center gap-3">
               <div className="rounded-xl bg-secondary p-2 text-muted-foreground">
                 <FolderSearchIcon className="size-5" />
               </div>
-              <div>
-                <CardTitle className="text-base">Import existing project</CardTitle>
-                <CardDescription>
-                  Bring a folder or working bundle and let DotCanvas reconstruct the room.
-                </CardDescription>
-              </div>
+              <CardTitle className="text-base">Import existing project</CardTitle>
             </div>
+            <CardDescription>
+              Bring an existing workspace and let DotCanvas reconstruct the room around the real
+              project brief, context, and next structure.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-sm text-muted-foreground">
-              Coming soon. This will scan an existing corpus, infer the deliverable, and draft the
-              project brief for review.
-            </p>
-          </CardContent>
           <CardFooter className="pt-0">
             <Button variant="outline" disabled>
               Coming soon
@@ -257,25 +241,18 @@ export function ProjectCreationSurface() {
         </Card>
 
         <Card className="opacity-80">
-          <CardHeader>
+          <CardHeader className="gap-4">
             <div className="flex items-center gap-3">
               <div className="rounded-xl bg-secondary p-2 text-muted-foreground">
                 <HistoryIcon className="size-5" />
               </div>
-              <div>
-                <CardTitle className="text-base">Resume old project</CardTitle>
-                <CardDescription>
-                  Re-open a stalled project and have DotCanvas rebuild the continuity.
-                </CardDescription>
-              </div>
+              <CardTitle className="text-base">Resume old project</CardTitle>
             </div>
+            <CardDescription>
+              Re-open a stalled workspace and let DotCanvas rebuild the room around unresolved work,
+              recovered context, and next steps.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-sm text-muted-foreground">
-              Coming soon. This will summarize what changed, what is unresolved, and what should
-              happen next.
-            </p>
-          </CardContent>
           <CardFooter className="pt-0">
             <Button variant="outline" disabled>
               Coming soon
