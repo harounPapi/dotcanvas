@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
+import { pickThreadViewSearch } from "../diffRouteSearch";
 import { readNativeApi } from "../nativeApi";
 import { useUiStateStore } from "../uiStateStore";
 
@@ -28,6 +29,7 @@ export function useDotCanvasProjectFlow() {
       await navigate({
         to: "/$threadId",
         params: { threadId: result.threadId },
+        search: (previous) => pickThreadViewSearch(previous),
       });
 
       return result;

@@ -1,74 +1,117 @@
 import { describe, expect, it } from "vitest";
 
-import { parseDiffRouteSearch } from "./diffRouteSearch";
+import { parseChatThreadRouteSearch, stripDiffSearchParams } from "./diffRouteSearch";
 
-describe("parseDiffRouteSearch", () => {
+describe("parseChatThreadRouteSearch", () => {
   it("parses valid diff search values", () => {
-    const parsed = parseDiffRouteSearch({
+    const parsed = parseChatThreadRouteSearch({
       diff: "1",
       diffTurnId: "turn-1",
       diffFilePath: "src/app.ts",
     });
 
     expect(parsed).toEqual({
+      view: "agent",
       diff: "1",
       diffTurnId: "turn-1",
       diffFilePath: "src/app.ts",
     });
   });
 
+  it("parses explicit agent and room views", () => {
+    expect(parseChatThreadRouteSearch({ view: "agent" })).toEqual({
+      view: "agent",
+    });
+
+    expect(parseChatThreadRouteSearch({ view: "room" })).toEqual({
+      view: "room",
+    });
+  });
+
+  it("defaults invalid or missing view values to agent", () => {
+    expect(parseChatThreadRouteSearch({})).toEqual({
+      view: "agent",
+    });
+
+    expect(parseChatThreadRouteSearch({ view: "elsewhere" })).toEqual({
+      view: "agent",
+    });
+  });
+
   it("treats numeric and boolean diff toggles as open", () => {
     expect(
-      parseDiffRouteSearch({
+      parseChatThreadRouteSearch({
         diff: 1,
         diffTurnId: "turn-1",
       }),
     ).toEqual({
+      view: "agent",
       diff: "1",
       diffTurnId: "turn-1",
     });
 
     expect(
-      parseDiffRouteSearch({
+      parseChatThreadRouteSearch({
         diff: true,
         diffTurnId: "turn-1",
       }),
     ).toEqual({
+      view: "agent",
       diff: "1",
       diffTurnId: "turn-1",
     });
   });
 
   it("drops turn and file values when diff is closed", () => {
-    const parsed = parseDiffRouteSearch({
+    const parsed = parseChatThreadRouteSearch({
+      view: "room",
       diff: "0",
       diffTurnId: "turn-1",
       diffFilePath: "src/app.ts",
     });
 
-    expect(parsed).toEqual({});
+    expect(parsed).toEqual({
+      view: "room",
+    });
   });
 
   it("drops file value when turn is not selected", () => {
-    const parsed = parseDiffRouteSearch({
+    const parsed = parseChatThreadRouteSearch({
       diff: "1",
       diffFilePath: "src/app.ts",
     });
 
     expect(parsed).toEqual({
+      view: "agent",
       diff: "1",
     });
   });
 
   it("normalizes whitespace-only values", () => {
-    const parsed = parseDiffRouteSearch({
+    const parsed = parseChatThreadRouteSearch({
       diff: "1",
       diffTurnId: "  ",
       diffFilePath: "  ",
     });
 
     expect(parsed).toEqual({
+      view: "agent",
       diff: "1",
+    });
+  });
+});
+
+describe("stripDiffSearchParams", () => {
+  it("keeps the current view while removing diff-specific keys", () => {
+    expect(
+      stripDiffSearchParams({
+        view: "room",
+        diff: "1",
+        diffTurnId: "turn-1",
+        diffFilePath: "src/app.ts",
+      }),
+    ).toEqual({
+      view: "room",
     });
   });
 });

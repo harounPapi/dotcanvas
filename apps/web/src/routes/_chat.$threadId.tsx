@@ -1,5 +1,5 @@
 import { ThreadId } from "@t3tools/contracts";
-import { createFileRoute, retainSearchParams, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { Suspense, lazy, type ReactNode, useCallback, useEffect, useState } from "react";
 
 import ChatView from "../components/ChatView";
@@ -12,9 +12,10 @@ import {
 } from "../components/DiffPanelShell";
 import { useComposerDraftStore } from "../composerDraftStore";
 import {
-  type DiffRouteSearch,
-  parseDiffRouteSearch,
+  parseChatThreadRouteSearch,
+  pickThreadViewSearch,
   stripDiffSearchParams,
+  validateChatThreadRouteSearch,
 } from "../diffRouteSearch";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { useStore } from "../store";
@@ -166,22 +167,27 @@ function ChatThreadRouteView() {
   const threadId = Route.useParams({
     select: (params) => ThreadId.makeUnsafe(params.threadId),
   });
-  const search = Route.useSearch();
+  const search = useSearch({
+    strict: false,
+    select: (params) => parseChatThreadRouteSearch(params),
+  });
   const threadExists = useStore((store) => store.threads.some((thread) => thread.id === threadId));
   const draftThreadExists = useComposerDraftStore((store) =>
     Object.hasOwn(store.draftThreadsByThreadId, threadId),
   );
   const routeThreadExists = threadExists || draftThreadExists;
-  const diffOpen = search.diff === "1";
+  const viewMode = search.view;
+  const rawDiffOpen = search.diff === "1";
+  const diffOpen = viewMode === "agent" && rawDiffOpen;
   const shouldUseDiffSheet = useMediaQuery(DIFF_INLINE_LAYOUT_MEDIA_QUERY);
   // TanStack Router keeps active route components mounted across param-only navigations
   // unless remountDeps are configured, so this stays warm across thread switches.
-  const [hasOpenedDiff, setHasOpenedDiff] = useState(diffOpen);
+  const [hasOpenedDiff, setHasOpenedDiff] = useState(rawDiffOpen);
   const closeDiff = useCallback(() => {
     void navigate({
       to: "/$threadId",
       params: { threadId },
-      search: { diff: undefined },
+      search: (previous) => stripDiffSearchParams(previous),
     });
   }, [navigate, threadId]);
   const openDiff = useCallback(() => {
@@ -196,10 +202,10 @@ function ChatThreadRouteView() {
   }, [navigate, threadId]);
 
   useEffect(() => {
-    if (diffOpen) {
+    if (rawDiffOpen) {
       setHasOpenedDiff(true);
     }
-  }, [diffOpen]);
+  }, [rawDiffOpen]);
 
   useEffect(() => {
     if (!bootstrapComplete) {
@@ -207,7 +213,11 @@ function ChatThreadRouteView() {
     }
 
     if (!routeThreadExists) {
-      void navigate({ to: "/", replace: true });
+      void navigate({
+        to: "/",
+        replace: true,
+        search: (previous) => pickThreadViewSearch(previous),
+      });
       return;
     }
   }, [bootstrapComplete, navigate, routeThreadExists, threadId]);
@@ -216,12 +226,12 @@ function ChatThreadRouteView() {
     return null;
   }
 
-  const shouldRenderDiffContent = diffOpen || hasOpenedDiff;
+  const shouldRenderDiffContent = viewMode === "agent" && (rawDiffOpen || hasOpenedDiff);
 
   if (!shouldUseDiffSheet) {
     return (
       <>
-        <SidebarInset className="h-dvh  min-h-0 overflow-hidden overscroll-y-none bg-background text-foreground">
+        <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none bg-background text-foreground">
           <ChatView threadId={threadId} />
         </SidebarInset>
         <DiffPanelInlineSidebar
@@ -247,9 +257,6 @@ function ChatThreadRouteView() {
 }
 
 export const Route = createFileRoute("/_chat/$threadId")({
-  validateSearch: (search) => parseDiffRouteSearch(search),
-  search: {
-    middlewares: [retainSearchParams<DiffRouteSearch>(["diff"])],
-  },
+  validateSearch: (search) => validateChatThreadRouteSearch(search),
   component: ChatThreadRouteView,
 });

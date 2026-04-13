@@ -55,6 +55,7 @@ import {
 } from "@t3tools/contracts/settings";
 import { isElectron } from "../env";
 import { APP_STAGE_LABEL, APP_VERSION } from "../branding";
+import { pickThreadViewSearch } from "../diffRouteSearch";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import { isMacPlatform, newCommandId } from "../lib/utils";
 import { useStore } from "../store";
@@ -1033,6 +1034,7 @@ export default function Sidebar() {
       void navigate({
         to: "/$threadId",
         params: { threadId },
+        search: (previous) => pickThreadViewSearch(previous),
       });
     },
     [
@@ -1054,6 +1056,7 @@ export default function Sidebar() {
       void navigate({
         to: "/$threadId",
         params: { threadId },
+        search: (previous) => pickThreadViewSearch(previous),
       });
     },
     [clearSelection, navigate, selectedThreadIds.size, setSelectionAnchor],

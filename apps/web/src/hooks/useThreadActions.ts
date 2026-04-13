@@ -5,6 +5,7 @@ import { useCallback } from "react";
 
 import { getFallbackThreadIdAfterDelete } from "../components/Sidebar.logic";
 import { useComposerDraftStore } from "../composerDraftStore";
+import { pickThreadViewSearch } from "../diffRouteSearch";
 import { useHandleNewThread } from "./useHandleNewThread";
 import { gitRemoveWorktreeMutationOptions } from "../lib/gitReactQuery";
 import { newCommandId } from "../lib/utils";
@@ -133,9 +134,14 @@ export function useThreadActions() {
             to: "/$threadId",
             params: { threadId: fallbackThreadId },
             replace: true,
+            search: (previous) => pickThreadViewSearch(previous),
           });
         } else {
-          await navigate({ to: "/", replace: true });
+          await navigate({
+            to: "/",
+            replace: true,
+            search: (previous) => pickThreadViewSearch(previous),
+          });
         }
       }
 
