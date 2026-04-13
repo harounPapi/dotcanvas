@@ -172,6 +172,7 @@ import {
 } from "./chat/composerProviderRegistry";
 import { ProviderStatusBanner } from "./chat/ProviderStatusBanner";
 import { ThreadErrorBanner } from "./chat/ThreadErrorBanner";
+import { RoomView } from "./room/RoomView";
 import {
   MAX_HIDDEN_MOUNTED_TERMINAL_THREADS,
   buildExpiredTerminalContextToastCopy,
@@ -1864,6 +1865,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const activeProjectCwd = activeProject?.cwd ?? null;
   const activeThreadWorktreePath = activeThread?.worktreePath ?? null;
   const activeWorkspaceRoot = activeThreadWorktreePath ?? activeProjectCwd ?? undefined;
+  const roomWorkspaceRoot = activeProjectCwd ?? activeThreadWorktreePath ?? undefined;
   const activeTerminalLaunchContext =
     terminalLaunchContext?.threadId === activeThreadId
       ? terminalLaunchContext
@@ -4853,7 +4855,13 @@ export default function ChatView({ threadId }: ChatViewProps) {
         data-thread-surface="room"
         hidden={isAgentView}
         className="flex min-h-0 min-w-0 flex-1 flex-col"
-      />
+      >
+        <RoomView
+          resolvedTheme={resolvedTheme}
+          visible={!isAgentView}
+          workspaceRoot={roomWorkspaceRoot}
+        />
+      </section>
 
       {mountedTerminalThreadIds.map((mountedThreadId) => (
         <PersistentThreadTerminalDrawer

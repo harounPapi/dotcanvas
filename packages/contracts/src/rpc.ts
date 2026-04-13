@@ -60,6 +60,9 @@ import {
   ProjectCreateDirectoryError,
   ProjectCreateDirectoryInput,
   ProjectCreateDirectoryResult,
+  ProjectListDirectoryError,
+  ProjectListDirectoryInput,
+  ProjectListDirectoryResult,
   ProjectSearchEntriesError,
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
@@ -98,6 +101,7 @@ export const WS_METHODS = {
   projectsRemove: "projects.remove",
   projectsBootstrapStart: "projects.bootstrapStart",
   projectsCreateDirectory: "projects.createDirectory",
+  projectsListDirectory: "projects.listDirectory",
   projectsSearchEntries: "projects.searchEntries",
   projectsStatPath: "projects.statPath",
   projectsWriteFile: "projects.writeFile",
@@ -177,6 +181,12 @@ export const WsProjectsSearchEntriesRpc = Rpc.make(WS_METHODS.projectsSearchEntr
   payload: ProjectSearchEntriesInput,
   success: ProjectSearchEntriesResult,
   error: ProjectSearchEntriesError,
+});
+
+export const WsProjectsListDirectoryRpc = Rpc.make(WS_METHODS.projectsListDirectory, {
+  payload: ProjectListDirectoryInput,
+  success: ProjectListDirectoryResult,
+  error: ProjectListDirectoryError,
 });
 
 export const WsProjectsCreateDirectoryRpc = Rpc.make(WS_METHODS.projectsCreateDirectory, {
@@ -401,6 +411,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerUpdateSettingsRpc,
   WsProjectsBootstrapStartRpc,
   WsProjectsCreateDirectoryRpc,
+  WsProjectsListDirectoryRpc,
   WsProjectsSearchEntriesRpc,
   WsProjectsStatPathRpc,
   WsProjectsWriteFileRpc,

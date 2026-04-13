@@ -58,6 +58,7 @@ export interface WsRpcClient {
   readonly projects: {
     readonly bootstrapStart: RpcUnaryMethod<typeof WS_METHODS.projectsBootstrapStart>;
     readonly createDirectory: RpcUnaryMethod<typeof WS_METHODS.projectsCreateDirectory>;
+    readonly listDirectory: RpcUnaryMethod<typeof WS_METHODS.projectsListDirectory>;
     readonly searchEntries: RpcUnaryMethod<typeof WS_METHODS.projectsSearchEntries>;
     readonly statPath: RpcUnaryMethod<typeof WS_METHODS.projectsStatPath>;
     readonly writeFile: RpcUnaryMethod<typeof WS_METHODS.projectsWriteFile>;
@@ -161,6 +162,8 @@ export function createWsRpcClient(transport = new WsTransport()): WsRpcClient {
         transport.request((client) => client[WS_METHODS.projectsBootstrapStart](input)),
       createDirectory: (input) =>
         transport.request((client) => client[WS_METHODS.projectsCreateDirectory](input)),
+      listDirectory: (input) =>
+        transport.request((client) => client[WS_METHODS.projectsListDirectory](input)),
       searchEntries: (input) =>
         transport.request((client) => client[WS_METHODS.projectsSearchEntries](input)),
       statPath: (input) =>

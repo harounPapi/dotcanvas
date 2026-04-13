@@ -693,6 +693,12 @@ function resolveWsRpc(body: NormalizedWsRpcRequestBody): unknown {
       truncated: false,
     };
   }
+  if (tag === WS_METHODS.projectsListDirectory) {
+    return {
+      entries: [],
+      truncated: false,
+    };
+  }
   if (tag === WS_METHODS.shellOpenInEditor) {
     return null;
   }
@@ -1445,6 +1451,160 @@ describe("ChatView timeline estimator parity (full app)", () => {
         () => {
           expect(agentView.hidden).toBe(true);
           expect(roomView.hidden).toBe(false);
+          expect(document.body.textContent).toContain("ROOM FOLDER");
+          expect(
+            document.querySelector('button[aria-label="Resize room folder sidebar"]'),
+          ).not.toBeNull();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("renders workspace root entries in the room sidebar", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-tree-root" as MessageId,
+        targetText: "room tree root",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag !== WS_METHODS.projectsListDirectory) {
+          return undefined;
+        }
+        if (body.directoryPath !== undefined) {
+          return {
+            entries: [],
+            truncated: false,
+          };
+        }
+        return {
+          entries: [
+            { path: "src", kind: "directory" as const },
+            { path: "README.md", kind: "file" as const },
+          ],
+          truncated: false,
+        };
+      },
+    });
+
+    try {
+      await vi.waitFor(
+        () => {
+          const roomView = document.querySelector<HTMLElement>('[aria-label="Room view"]');
+          expect(roomView?.hidden).toBe(false);
+          expect(document.body.textContent).toContain("src");
+          expect(document.body.textContent).toContain("README.md");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("loads nested room tree entries when a folder is expanded", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-tree-expand" as MessageId,
+        targetText: "room tree expand",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag !== WS_METHODS.projectsListDirectory) {
+          return undefined;
+        }
+        if (body.directoryPath === "src") {
+          return {
+            entries: [
+              { path: "src/components", kind: "directory" as const, parentPath: "src" },
+              { path: "src/index.ts", kind: "file" as const, parentPath: "src" },
+            ],
+            truncated: false,
+          };
+        }
+        return {
+          entries: [
+            { path: "src", kind: "directory" as const },
+            { path: "package.json", kind: "file" as const },
+          ],
+          truncated: false,
+        };
+      },
+    });
+
+    try {
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("src");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const expandButton = document.querySelector<HTMLButtonElement>(
+        'button[aria-label="Expand src"]',
+      );
+      expect(expandButton).not.toBeNull();
+      expandButton?.click();
+
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("components");
+          expect(document.body.textContent).toContain("index.ts");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("uses the project root as the room tree root even when a worktree is present", async () => {
+    const listDirectoryCalls: Array<{ cwd: string; directoryPath?: string }> = [];
+    const snapshot = createSnapshotForTargetUser({
+      targetMessageId: "msg-user-room-tree-worktree" as MessageId,
+      targetText: "room tree worktree",
+    });
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: {
+        ...snapshot,
+        threads: snapshot.threads.map((thread) =>
+          thread.id === THREAD_ID
+            ? Object.assign({}, thread, {
+                worktreePath: "/repo/worktrees/feature-room",
+              })
+            : thread,
+        ),
+      },
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag !== WS_METHODS.projectsListDirectory) {
+          return undefined;
+        }
+        listDirectoryCalls.push({
+          cwd: typeof body.cwd === "string" ? body.cwd : "",
+          ...(typeof body.directoryPath === "string" ? { directoryPath: body.directoryPath } : {}),
+        });
+        return {
+          entries: [{ path: "src", kind: "directory" as const }],
+          truncated: false,
+        };
+      },
+    });
+
+    try {
+      await vi.waitFor(
+        () => {
+          expect(listDirectoryCalls).toContainEqual({
+            cwd: "/repo/project",
+          });
+          expect(document.body.textContent).toContain("src");
         },
         { timeout: 8_000, interval: 16 },
       );

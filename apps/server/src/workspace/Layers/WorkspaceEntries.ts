@@ -16,7 +16,9 @@ import { WorkspacePaths } from "../Services/WorkspacePaths.ts";
 const WORKSPACE_CACHE_TTL_MS = 15_000;
 const WORKSPACE_CACHE_MAX_KEYS = 4;
 const WORKSPACE_INDEX_MAX_ENTRIES = 25_000;
+const WORKSPACE_DIRECTORY_LIST_MAX_ENTRIES = 1_000;
 const WORKSPACE_SCAN_READDIR_CONCURRENCY = 32;
+const ENTRY_SORT_LOCALE_OPTIONS: Intl.CollatorOptions = { numeric: true, sensitivity: "base" };
 const IGNORED_DIRECTORY_NAMES = new Set([
   ".git",
   ".convex",
@@ -63,6 +65,23 @@ function basenameOf(input: string): string {
     return input;
   }
   return input.slice(separatorIndex + 1);
+}
+
+function compareProjectEntries(left: ProjectEntry, right: ProjectEntry): number {
+  if (left.kind !== right.kind) {
+    return left.kind === "directory" ? -1 : 1;
+  }
+
+  const nameDelta = basenameOf(left.path).localeCompare(
+    basenameOf(right.path),
+    undefined,
+    ENTRY_SORT_LOCALE_OPTIONS,
+  );
+  if (nameDelta !== 0) {
+    return nameDelta;
+  }
+
+  return left.path.localeCompare(right.path, undefined, ENTRY_SORT_LOCALE_OPTIONS);
 }
 
 function toSearchableWorkspaceEntry(entry: ProjectEntry): SearchableWorkspaceEntry {
@@ -465,6 +484,123 @@ export const makeWorkspaceEntries = Effect.gen(function* () {
     },
   );
 
+  const listDirectory: WorkspaceEntriesShape["listDirectory"] = Effect.fn(
+    "WorkspaceEntries.listDirectory",
+  )(function* (input) {
+    const normalizedCwd = yield* normalizeWorkspaceRoot(input.cwd);
+    const directoryTarget = input.directoryPath
+      ? yield* workspacePaths
+          .resolveRelativePathWithinRoot({
+            workspaceRoot: normalizedCwd,
+            relativePath: input.directoryPath,
+          })
+          .pipe(
+            Effect.mapError(
+              (cause) =>
+                new WorkspaceEntriesError({
+                  cwd: input.cwd,
+                  operation: "workspaceEntries.resolveDirectoryPath",
+                  detail: cause.message,
+                  cause,
+                }),
+            ),
+          )
+      : { absolutePath: normalizedCwd, relativePath: undefined };
+
+    const directoryStat = yield* Effect.tryPromise({
+      try: () => fsPromises.stat(directoryTarget.absolutePath),
+      catch: (cause) =>
+        new WorkspaceEntriesError({
+          cwd: normalizedCwd,
+          operation: "workspaceEntries.statDirectory",
+          detail: processErrorDetail(cause),
+          cause,
+        }),
+    }).pipe(
+      Effect.catchTag("WorkspaceEntriesError", (cause) => {
+        const detail = cause.detail.includes("ENOENT")
+          ? `Directory does not exist: ${directoryTarget.relativePath ?? "."}`
+          : cause.detail;
+        return Effect.fail(
+          new WorkspaceEntriesError({
+            cwd: normalizedCwd,
+            operation: cause.operation,
+            detail,
+            cause: cause.cause,
+          }),
+        );
+      }),
+    );
+
+    if (!directoryStat.isDirectory()) {
+      return yield* new WorkspaceEntriesError({
+        cwd: normalizedCwd,
+        operation: "workspaceEntries.listDirectory",
+        detail: `Path is not a directory: ${directoryTarget.relativePath ?? "."}`,
+      });
+    }
+
+    const dirents = yield* Effect.tryPromise({
+      try: () => fsPromises.readdir(directoryTarget.absolutePath, { withFileTypes: true }),
+      catch: (cause) =>
+        new WorkspaceEntriesError({
+          cwd: normalizedCwd,
+          operation: "workspaceEntries.readDirectoryEntries",
+          detail: processErrorDetail(cause),
+          cause,
+        }),
+    });
+
+    const candidateEntries: ProjectEntry[] = [];
+    for (const dirent of dirents.toSorted((left, right) =>
+      left.name.localeCompare(right.name, undefined, ENTRY_SORT_LOCALE_OPTIONS),
+    )) {
+      if (!dirent.name || dirent.name === "." || dirent.name === "..") {
+        continue;
+      }
+      if (!dirent.isDirectory() && !dirent.isFile()) {
+        continue;
+      }
+      if (dirent.isDirectory() && IGNORED_DIRECTORY_NAMES.has(dirent.name)) {
+        continue;
+      }
+
+      const relativePath = toPosixPath(
+        directoryTarget.relativePath
+          ? path.join(directoryTarget.relativePath, dirent.name)
+          : dirent.name,
+      );
+      if (isPathInIgnoredDirectory(relativePath)) {
+        continue;
+      }
+
+      candidateEntries.push({
+        path: relativePath,
+        kind: dirent.isDirectory() ? "directory" : "file",
+        parentPath: directoryTarget.relativePath,
+      });
+    }
+
+    const shouldFilterWithGitIgnore = yield* isInsideGitWorkTree(normalizedCwd);
+    const allowedPathSet = shouldFilterWithGitIgnore
+      ? new Set(
+          yield* filterGitIgnoredPaths(
+            normalizedCwd,
+            candidateEntries.map((entry) => entry.path),
+          ),
+        )
+      : null;
+
+    const allowedEntries = candidateEntries
+      .filter((entry) => allowedPathSet?.has(entry.path) ?? true)
+      .toSorted(compareProjectEntries);
+
+    return {
+      entries: allowedEntries.slice(0, WORKSPACE_DIRECTORY_LIST_MAX_ENTRIES),
+      truncated: allowedEntries.length > WORKSPACE_DIRECTORY_LIST_MAX_ENTRIES,
+    };
+  });
+
   const search: WorkspaceEntriesShape["search"] = Effect.fn("WorkspaceEntries.search")(
     function* (input) {
       const normalizedCwd = yield* normalizeWorkspaceRoot(input.cwd);
@@ -496,6 +632,7 @@ export const makeWorkspaceEntries = Effect.gen(function* () {
 
   return {
     invalidate,
+    listDirectory,
     search,
   } satisfies WorkspaceEntriesShape;
 });
