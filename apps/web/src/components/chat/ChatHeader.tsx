@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { BotIcon, PanelsTopLeftIcon } from "lucide-react";
+import { BotIcon, PanelsTopLeftIcon } from "~/components/ui/icons";
 
 import { type ThreadViewMode } from "../../diffRouteSearch";
 import {

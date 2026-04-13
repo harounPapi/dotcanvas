@@ -1,7 +1,7 @@
 import { type CapabilityScope, type ProjectEntry, type ProviderKind } from "@t3tools/contracts";
 import { memo, useLayoutEffect, useRef } from "react";
 import { type ComposerSlashCommand, type ComposerTriggerKind } from "../../composer-logic";
-import { ArrowLeftIcon, BotIcon, PackageIcon, PlugIcon, WrenchIcon } from "lucide-react";
+import { ArrowLeftIcon, BotIcon, PackageIcon, PlugIcon, WrenchIcon } from "~/components/ui/icons";
 import { cn } from "~/lib/utils";
 import { Badge } from "../ui/badge";
 import {

@@ -1,11 +1,11 @@
 "use client";
 
 import {
-  Folder01Icon as HugeFolderIcon,
+  ChevronRightIcon,
+  FileIcon,
+  FolderIcon as HugeFolderIcon,
   FolderOpenIcon as HugeFolderOpenIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { ChevronRightIcon, FileIcon } from "lucide-react";
+} from "~/components/ui/icons";
 import type { HTMLAttributes, KeyboardEvent, ReactNode, SyntheticEvent } from "react";
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
@@ -155,9 +155,9 @@ export function FileTreeFolder({ path, name, className, children, ...props }: Fi
           >
             <FileTreeIcon>
               {isExpanded ? (
-                <HugeiconsIcon className="size-4 text-blue-500" icon={HugeFolderOpenIcon} />
+                <HugeFolderOpenIcon className="size-4 text-blue-500" />
               ) : (
-                <HugeiconsIcon className="size-4 text-blue-500" icon={HugeFolderIcon} />
+                <HugeFolderIcon className="size-4 text-blue-500" />
               )}
             </FileTreeIcon>
             <FileTreeName>{name}</FileTreeName>

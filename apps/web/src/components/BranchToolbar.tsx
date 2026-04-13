@@ -1,5 +1,5 @@
 import type { ThreadId } from "@t3tools/contracts";
-import { FolderIcon, GitForkIcon } from "lucide-react";
+import { FolderIcon, GitForkIcon } from "~/components/ui/icons";
 import { useCallback } from "react";
 
 import { newCommandId } from "../lib/utils";

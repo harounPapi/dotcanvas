@@ -2,8 +2,7 @@ import {
   ArchiveIcon as HugeArchiveIcon,
   ArrowLeft01Icon as HugeArrowLeftIcon,
   Setting06Icon as HugeSettingIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+} from "../ui/icons";
 import { useNavigate } from "@tanstack/react-router";
 
 import {
@@ -37,6 +36,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
           <SidebarMenu>
             {SETTINGS_NAV_ITEMS.map((item) => {
               const isActive = pathname === item.to;
+              const Icon = item.icon;
               return (
                 <SidebarMenuItem key={item.to}>
                   <SidebarMenuButton
@@ -49,13 +49,12 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                     }
                     onClick={() => void navigate({ to: item.to, replace: true })}
                   >
-                    <HugeiconsIcon
+                    <Icon
                       className={
                         isActive
                           ? "size-4 shrink-0 text-foreground"
                           : "size-4 shrink-0 text-muted-foreground"
                       }
-                      icon={item.icon}
                     />
                     <span className="truncate">{item.label}</span>
                   </SidebarMenuButton>
@@ -75,7 +74,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
               className="gap-2 px-2 py-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
               onClick={() => window.history.back()}
             >
-              <HugeiconsIcon className="size-4" icon={HugeArrowLeftIcon} />
+              <HugeArrowLeftIcon className="size-4" />
               <span>Back</span>
             </SidebarMenuButton>
           </SidebarMenuItem>

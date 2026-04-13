@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FilePlus2Icon, FolderSearchIcon, HistoryIcon, FolderIcon } from "lucide-react";
+import { FilePlus2Icon, FolderSearchIcon, HistoryIcon, FolderIcon } from "~/components/ui/icons";
 import { isElectron } from "../env";
 import { readNativeApi } from "../nativeApi";
 import { useDotCanvasProjectFlow } from "../hooks/useDotCanvasProjectFlow";

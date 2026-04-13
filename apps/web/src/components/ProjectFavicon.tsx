@@ -1,5 +1,4 @@
-import { Folder01Icon as HugeFolderIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { FolderIcon as HugeFolderIcon } from "~/components/ui/icons";
 import { useState } from "react";
 import { resolveServerUrl } from "~/lib/utils";
 
@@ -18,9 +17,8 @@ export function ProjectFavicon({ cwd, className }: { cwd: string; className?: st
   return (
     <>
       {status !== "loaded" ? (
-        <HugeiconsIcon
+        <HugeFolderIcon
           className={`size-3.5 shrink-0 text-muted-foreground/50 ${className ?? ""}`}
-          icon={HugeFolderIcon}
         />
       ) : null}
       <img

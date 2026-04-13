@@ -1,7 +1,7 @@
 "use client";
 
 import * as Schema from "effect/Schema";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "~/components/ui/icons";
 import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,

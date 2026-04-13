@@ -3,14 +3,13 @@ import {
   ArchiveIcon as HugeArchiveIcon,
   ArrowRight01Icon as HugeArrowRightIcon,
   ArrowUpDownIcon as HugeArrowUpDownIcon,
+  FolderIcon as HugeFolderIcon,
   GitPullRequestIcon as HugeGitPullRequestIcon,
   PencilEdit02Icon as HugePencilEditIcon,
   PlusSignIcon as HugePlusSignIcon,
   Setting06Icon as HugeSettingIcon,
   TerminalIcon as HugeTerminalIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { ProjectFavicon } from "./ProjectFavicon";
+} from "./ui/icons";
 import { Logo } from "./branding/Logo";
 import { autoAnimate } from "@formkit/auto-animate";
 import {
@@ -166,7 +165,8 @@ interface PrStatusIndicator {
 type ThreadPr = GitStatusResult["pr"];
 
 function SidebarGlyph(props: { icon: typeof HugeArchiveIcon; className?: string }) {
-  return <HugeiconsIcon className={props.className} icon={props.icon} />;
+  const Icon = props.icon;
+  return <Icon className={props.className} />;
 }
 
 function ThreadStatusLabel({
@@ -1479,7 +1479,10 @@ export default function Sidebar() {
                 icon={HugeArrowRightIcon}
               />
             )}
-            <ProjectFavicon cwd={project.cwd} />
+            <SidebarGlyph
+              className="size-3.5 shrink-0 text-muted-foreground/60"
+              icon={HugeFolderIcon}
+            />
             <span className="flex-1 truncate text-xs font-medium text-foreground/90">
               {project.name}
             </span>

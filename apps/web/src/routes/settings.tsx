@@ -1,4 +1,4 @@
-import { RotateCcwIcon } from "lucide-react";
+import { RotateCcwIcon } from "~/components/ui/icons";
 import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 

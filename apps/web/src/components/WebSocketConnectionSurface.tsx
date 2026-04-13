@@ -1,4 +1,4 @@
-import { AlertTriangle, CloudOff, LoaderCircle, RotateCw } from "lucide-react";
+import { AlertTriangle, CloudOff, LoaderCircle, RotateCw } from "~/components/ui/icons";
 import { type ReactNode, useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { APP_BASE_NAME, APP_DISPLAY_NAME } from "../branding";

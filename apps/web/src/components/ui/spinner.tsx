@@ -1,7 +1,7 @@
-import { Loader2Icon } from "lucide-react";
+import { Loader2Icon, type AppIconProps } from "~/components/ui/icons";
 import { cn } from "~/lib/utils";
 
-function Spinner({ className, ...props }: React.ComponentProps<typeof Loader2Icon>) {
+function Spinner({ className, ...props }: AppIconProps) {
   return (
     <Loader2Icon
       aria-label="Loading"
