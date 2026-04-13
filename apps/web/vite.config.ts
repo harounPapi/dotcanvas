@@ -30,7 +30,14 @@ export default defineConfig({
     tailwindcss(),
   ],
   optimizeDeps: {
-    include: ["@pierre/diffs", "@pierre/diffs/react", "@pierre/diffs/worker/worker.js"],
+    include: [
+      "@base-ui/react/merge-props",
+      "@base-ui/react/tabs",
+      "@base-ui/react/use-render",
+      "@pierre/diffs",
+      "@pierre/diffs/react",
+      "@pierre/diffs/worker/worker.js",
+    ],
   },
   define: {
     // In dev mode, tell the web app where the WebSocket server lives
@@ -38,6 +45,7 @@ export default defineConfig({
     "import.meta.env.APP_VERSION": JSON.stringify(pkg.version),
   },
   resolve: {
+    dedupe: ["react", "react-dom"],
     tsconfigPaths: true,
   },
   server: {
