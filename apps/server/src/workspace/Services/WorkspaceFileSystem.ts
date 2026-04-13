@@ -9,7 +9,14 @@
 import { Schema, ServiceMap } from "effect";
 import type { Effect } from "effect";
 
-import type { ProjectWriteFileInput, ProjectWriteFileResult } from "@t3tools/contracts";
+import type {
+  ProjectCreateDirectoryInput,
+  ProjectCreateDirectoryResult,
+  ProjectStatPathInput,
+  ProjectStatPathResult,
+  ProjectWriteFileInput,
+  ProjectWriteFileResult,
+} from "@t3tools/contracts";
 import { WorkspacePathOutsideRootError } from "./WorkspacePaths.ts";
 
 export class WorkspaceFileSystemError extends Schema.TaggedErrorClass<WorkspaceFileSystemError>()(
@@ -27,6 +34,26 @@ export class WorkspaceFileSystemError extends Schema.TaggedErrorClass<WorkspaceF
  * WorkspaceFileSystemShape - Service API for workspace-relative file operations.
  */
 export interface WorkspaceFileSystemShape {
+  /**
+   * Create a new child directory under an existing parent path.
+   *
+   * Rejects invalid names, existing targets, and missing/non-directory parents.
+   */
+  readonly createDirectory: (
+    input: ProjectCreateDirectoryInput,
+  ) => Effect.Effect<ProjectCreateDirectoryResult, WorkspaceFileSystemError>;
+
+  /**
+   * Read whether a path exists within the workspace root and, when present,
+   * whether it is a file or directory.
+   */
+  readonly statPath: (
+    input: ProjectStatPathInput,
+  ) => Effect.Effect<
+    ProjectStatPathResult,
+    WorkspaceFileSystemError | WorkspacePathOutsideRootError
+  >;
+
   /**
    * Write a file relative to the workspace root.
    *

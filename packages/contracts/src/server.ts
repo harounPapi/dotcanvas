@@ -10,6 +10,7 @@ import { KeybindingRule, ResolvedKeybindingsConfig } from "./keybindings";
 import { EditorId } from "./editor";
 import { ModelCapabilities } from "./model";
 import { ProviderKind } from "./orchestration";
+import { ProjectAppId } from "./projectApp";
 import { ServerSettings } from "./settings";
 
 const KeybindingsMalformedConfigIssue = Schema.Struct({
@@ -89,6 +90,7 @@ export const ServerConfig = Schema.Struct({
   issues: ServerConfigIssues,
   providers: ServerProviders,
   availableEditors: Schema.Array(EditorId),
+  availableProjectApps: Schema.Array(ProjectAppId),
   observability: ServerObservability,
   settings: ServerSettings,
 });

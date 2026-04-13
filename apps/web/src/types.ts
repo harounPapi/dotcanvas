@@ -11,14 +11,16 @@ import type {
   MessageId,
   ProviderKind,
   CheckpointRef,
-  ProviderInteractionMode,
+  ThreadInteractionMode,
+  ProjectKind,
   RuntimeMode,
+  ProjectBootstrapState,
 } from "@t3tools/contracts";
 
 export type SessionPhase = "disconnected" | "connecting" | "ready" | "running";
 export const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";
 
-export const DEFAULT_INTERACTION_MODE: ProviderInteractionMode = "default";
+export const DEFAULT_INTERACTION_MODE: ThreadInteractionMode = "default";
 export const DEFAULT_THREAD_TERMINAL_HEIGHT = 280;
 export const DEFAULT_THREAD_TERMINAL_ID = "default";
 export const MAX_TERMINALS_PER_GROUP = 4;
@@ -82,6 +84,9 @@ export interface Project {
   id: ProjectId;
   name: string;
   cwd: string;
+  kind: ProjectKind;
+  bootstrapState: ProjectBootstrapState;
+  bootstrapThreadId: ThreadId | null;
   defaultModelSelection: ModelSelection | null;
   createdAt?: string | undefined;
   updatedAt?: string | undefined;
@@ -95,7 +100,7 @@ export interface Thread {
   title: string;
   modelSelection: ModelSelection;
   runtimeMode: RuntimeMode;
-  interactionMode: ProviderInteractionMode;
+  interactionMode: ThreadInteractionMode;
   session: ThreadSession | null;
   messages: ChatMessage[];
   proposedPlans: ProposedPlan[];
@@ -115,7 +120,7 @@ export interface SidebarThreadSummary {
   id: ThreadId;
   projectId: ProjectId;
   title: string;
-  interactionMode: ProviderInteractionMode;
+  interactionMode: ThreadInteractionMode;
   session: ThreadSession | null;
   createdAt: string;
   archivedAt: string | null;

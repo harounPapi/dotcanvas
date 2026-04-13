@@ -1,6 +1,7 @@
 I think the key is: we should not give them “Codex, but less technical.” We should give them a `project operator harness` built on Codex.
 
 Under the hood, it can still be Codex:
+
 - file-aware
 - stateful
 - tool-using
@@ -16,16 +17,17 @@ But on the surface, it should feel like:
 I’d structure the harness around 6 things:
 
 1. `Project brief`
-What is this project, what is the goal, what is the deliverable, what matters, what counts as “good”.
+   What is this project, what is the goal, what is the deliverable, what matters, what counts as “good”.
 
 2. `Corpus map`
-What files exist, what kind they are, which ones matter most, what is missing, what is stale.
+   What files exist, what kind they are, which ones matter most, what is missing, what is stale.
 
 3. `Working memory`
-Assumptions, glossary, stakeholders, open questions, unresolved contradictions, key findings.
+   Assumptions, glossary, stakeholders, open questions, unresolved contradictions, key findings.
 
 4. `Workstreams`
-Not generic chats. Real lanes like:
+   Not generic chats. Real lanes like:
+
 - literature review
 - findings memo
 - business plan draft
@@ -34,7 +36,8 @@ Not generic chats. Real lanes like:
 - grant compliance
 
 5. `Playbooks`
-Codex skills, but surfaced as role-shaped actions:
+   Codex skills, but surfaced as role-shaped actions:
+
 - “Build literature review”
 - “Extract KPIs”
 - “Compare 5 startups”
@@ -42,7 +45,8 @@ Codex skills, but surfaced as role-shaped actions:
 - “Draft market landscape”
 
 6. `Artifacts`
-The product should always know what output is being built:
+   The product should always know what output is being built:
+
 - paper
 - memo
 - deck
@@ -57,23 +61,23 @@ That feels much more native than “what would you like to ask?”
 I think DotCanvas helps these users in 5 main ways:
 
 - `Recover context fast`
-When they come back after 2 days, they should see:
-what changed, what’s done, what’s unresolved, what output is in flight.
+  When they come back after 2 days, they should see:
+  what changed, what’s done, what’s unresolved, what output is in flight.
 
 - `Turn source material into structure`
-Most of their pain is not writing from zero. It’s turning scattered material into an organized mental model.
+  Most of their pain is not writing from zero. It’s turning scattered material into an organized mental model.
 
 - `Preserve project memory`
-Especially for students, researchers, consultants, investors:
-“Why did I believe this?”
-“Which source supported that?”
-“What did I decide last week?”
+  Especially for students, researchers, consultants, investors:
+  “Why did I believe this?”
+  “Which source supported that?”
+  “What did I decide last week?”
 
 - `Draft serious outputs`
-Not just answer questions, but actually produce sections, summaries, outlines, comparison tables, issue logs, review-ready drafts.
+  Not just answer questions, but actually produce sections, summaries, outlines, comparison tables, issue logs, review-ready drafts.
 
 - `Keep grounding visible`
-Every serious claim should be traceable back to source files, pages, notes, cells, or links.
+  Every serious claim should be traceable back to source files, pages, notes, cells, or links.
 
 **How A New Project Should Start**
 I don’t think “upload files and chat” is enough. Starting a project should feel like opening a room.
@@ -81,7 +85,8 @@ I don’t think “upload files and chat” is enough. Starting a project should
 A good new-project flow might be:
 
 1. `What are you trying to produce?`
-Examples:
+   Examples:
+
 - thesis
 - research paper
 - business plan
@@ -90,6 +95,7 @@ Examples:
 - market research report
 
 2. `What material do you already have?`
+
 - folder of files
 - scattered documents
 - nothing yet
@@ -98,6 +104,7 @@ Examples:
 - spreadsheet/model
 
 3. `What stage are you at?`
+
 - just starting
 - collecting material
 - analyzing
@@ -106,6 +113,7 @@ Examples:
 - finalizing
 
 4. `What matters most?`
+
 - speed
 - source trust
 - structure
@@ -114,6 +122,7 @@ Examples:
 - deadline tracking
 
 From that, DotCanvas can create the first room:
+
 - project brief
 - suggested workstreams
 - initial memory sections
@@ -126,8 +135,9 @@ This is really important. Most people won’t start greenfield.
 I think there are a few strong import modes:
 
 1. `Import a folder`
-Best for consultants, students, researchers, founders.
-The system scans the folder and builds:
+   Best for consultants, students, researchers, founders.
+   The system scans the folder and builds:
+
 - project map
 - important files
 - probable deliverables
@@ -135,8 +145,9 @@ The system scans the folder and builds:
 - missing context questions
 
 2. `Import from a final artifact backward`
-Very strong move.
-User gives:
+   Very strong move.
+   User gives:
+
 - thesis draft
 - grant proposal
 - business plan
@@ -146,6 +157,7 @@ User gives:
 Then DotCanvas asks:
 “Do you want me to reconstruct the project behind this?”
 It can infer:
+
 - core themes
 - likely source sets
 - unresolved support gaps
@@ -153,16 +165,17 @@ It can infer:
 - project memory starter
 
 3. `Import from a working bundle`
-Examples:
+   Examples:
+
 - deck + spreadsheet + notes
 - paper draft + citations + comments
 - proposal draft + RFP + prior responses
-This is probably the most realistic real-world mode.
+  This is probably the most realistic real-world mode.
 
 4. `Import from a question`
-For messy users:
-“I need to decide whether to invest in these 4 startups.”
-Then DotCanvas creates the room and asks for materials progressively.
+   For messy users:
+   “I need to decide whether to invest in these 4 startups.”
+   Then DotCanvas creates the room and asks for materials progressively.
 
 **What The Import Should Produce**
 Import should not just index files. It should produce a usable project state:
@@ -184,6 +197,7 @@ That confirmation moment feels crucial.
 The Codex part should show up as competence, not as developer UX.
 
 So instead of exposing:
+
 - thread
 - skill
 - agent
@@ -191,6 +205,7 @@ So instead of exposing:
 - tool call
 
 We surface:
+
 - workstream
 - playbook
 - project brief
@@ -198,6 +213,7 @@ We surface:
 - review step
 
 But the harness still benefits from Codex strengths:
+
 - persistent workspace
 - instruction files
 - reusable playbooks
@@ -210,19 +226,19 @@ But the harness still benefits from Codex strengths:
 These feel promising to me:
 
 - `Start from deliverable`
-“Create a new research paper project.”
-“Create a grant proposal room.”
-“Create an investment review room.”
+  “Create a new research paper project.”
+  “Create a grant proposal room.”
+  “Create an investment review room.”
 
 - `Start from evidence`
-“Here is my folder. Tell me what kind of project this is and organize it.”
+  “Here is my folder. Tell me what kind of project this is and organize it.”
 
 - `Start from continuity pain`
-“I worked on this 2 months ago and I need to get back into it.”
+  “I worked on this 2 months ago and I need to get back into it.”
 
 - `Start from decision pressure`
-“I need to decide whether this startup is investable.”
-“I need to turn this market research into a recommendation.”
+  “I need to decide whether this startup is investable.”
+  “I need to turn this market research into a recommendation.”
 
 Those are much more natural than “start a chat.”
 
@@ -237,6 +253,7 @@ I think the harness should always answer 4 things on entry:
 If it does that well, it will already feel very different from normal chat.
 
 My instinct is the best next design exercise would be to sketch 3 concrete entry flows:
+
 - `new project from goal`
 - `import old project from folder`
 - `resume abandoned project`

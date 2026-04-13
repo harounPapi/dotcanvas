@@ -18,6 +18,7 @@ function createBaseServerConfig(): ServerConfig {
     issues: [],
     providers: [],
     availableEditors: ["cursor"],
+    availableProjectApps: [],
     observability: {
       logsDirectoryPath: "/repo/project/.t3/logs",
       localTracingEnabled: true,

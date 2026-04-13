@@ -1,6 +1,8 @@
 import {
   CommandId,
   DEFAULT_SERVER_SETTINGS,
+  DEFAULT_PROJECT_KIND,
+  DEFAULT_PROJECT_BOOTSTRAP_STATE,
   type DesktopBridge,
   EventId,
   type GitStatusResult,
@@ -48,11 +50,19 @@ const rpcClientMock = {
     ),
   },
   projects: {
+    bootstrapStart: vi.fn(),
+    createDirectory: vi.fn(),
     searchEntries: vi.fn(),
+    statPath: vi.fn(),
     writeFile: vi.fn(),
+  },
+  capabilities: {
+    search: vi.fn(),
+    readPluginBundle: vi.fn(),
   },
   shell: {
     openInEditor: vi.fn(),
+    openInProjectApp: vi.fn(),
   },
   git: {
     pull: vi.fn(),
@@ -164,6 +174,7 @@ const baseServerConfig: ServerConfig = {
   issues: [],
   providers: defaultProviders,
   availableEditors: ["cursor"],
+  availableProjectApps: [],
   observability: {
     logsDirectoryPath: "/tmp/workspace/.config/logs",
     localTracingEnabled: true,
@@ -247,6 +258,9 @@ describe("wsNativeApi", () => {
         projectId: ProjectId.makeUnsafe("project-1"),
         title: "Project",
         workspaceRoot: "/tmp/workspace",
+        kind: DEFAULT_PROJECT_KIND,
+        bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+        bootstrapThreadId: null,
         defaultModelSelection: {
           provider: "codex",
           model: "gpt-5-codex",
@@ -313,6 +327,9 @@ describe("wsNativeApi", () => {
       projectId: ProjectId.makeUnsafe("project-1"),
       title: "Project",
       workspaceRoot: "/tmp/project",
+      kind: DEFAULT_PROJECT_KIND,
+      bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+      bootstrapThreadId: null,
       defaultModelSelection: {
         provider: "codex",
         model: "gpt-5-codex",
@@ -339,6 +356,80 @@ describe("wsNativeApi", () => {
       cwd: "/tmp/project",
       relativePath: "plan.md",
       contents: "# Plan\n",
+    });
+  });
+
+  it("forwards project directory creation to the project RPC", async () => {
+    rpcClientMock.projects.createDirectory.mockResolvedValue({
+      workspaceRoot: "/tmp/projects/New Project",
+    });
+    const { createWsNativeApi } = await import("./wsNativeApi");
+
+    const api = createWsNativeApi();
+    await expect(
+      api.projects.createDirectory({
+        parentPath: "/tmp/projects",
+        directoryName: "New Project",
+      }),
+    ).resolves.toEqual({
+      workspaceRoot: "/tmp/projects/New Project",
+    });
+
+    expect(rpcClientMock.projects.createDirectory).toHaveBeenCalledWith({
+      parentPath: "/tmp/projects",
+      directoryName: "New Project",
+    });
+  });
+
+  it("forwards project bootstrap start to the project RPC", async () => {
+    rpcClientMock.projects.bootstrapStart.mockResolvedValue({
+      projectId: ProjectId.makeUnsafe("project-1"),
+      threadId: ThreadId.makeUnsafe("thread-1"),
+      workspaceRoot: "/tmp/projects/New Project",
+    });
+    const { createWsNativeApi } = await import("./wsNativeApi");
+
+    const api = createWsNativeApi();
+    await expect(
+      api.projects.bootstrapStart({
+        parentPath: "/tmp/projects",
+        projectName: "New Project",
+      }),
+    ).resolves.toEqual({
+      projectId: ProjectId.makeUnsafe("project-1"),
+      threadId: ThreadId.makeUnsafe("thread-1"),
+      workspaceRoot: "/tmp/projects/New Project",
+    });
+
+    expect(rpcClientMock.projects.bootstrapStart).toHaveBeenCalledWith({
+      parentPath: "/tmp/projects",
+      projectName: "New Project",
+    });
+  });
+
+  it("forwards project path stat requests to the project RPC", async () => {
+    rpcClientMock.projects.statPath.mockResolvedValue({
+      relativePath: "DotCanvas/project-brief.md",
+      exists: true,
+      kind: "file",
+    });
+    const { createWsNativeApi } = await import("./wsNativeApi");
+
+    const api = createWsNativeApi();
+    await expect(
+      api.projects.statPath({
+        cwd: "/tmp/project",
+        relativePath: "DotCanvas/project-brief.md",
+      }),
+    ).resolves.toEqual({
+      relativePath: "DotCanvas/project-brief.md",
+      exists: true,
+      kind: "file",
+    });
+
+    expect(rpcClientMock.projects.statPath).toHaveBeenCalledWith({
+      cwd: "/tmp/project",
+      relativePath: "DotCanvas/project-brief.md",
     });
   });
 

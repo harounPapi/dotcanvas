@@ -1,6 +1,8 @@
 import {
   CheckpointRef,
   DEFAULT_MODEL_BY_PROVIDER,
+  DEFAULT_PROJECT_KIND,
+  DEFAULT_PROJECT_BOOTSTRAP_STATE,
   EventId,
   MessageId,
   ProjectId,
@@ -56,6 +58,9 @@ function makeState(thread: Thread): AppState {
         id: ProjectId.makeUnsafe("project-1"),
         name: "Project",
         cwd: "/tmp/project",
+        kind: DEFAULT_PROJECT_KIND,
+        bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+        bootstrapThreadId: null,
         defaultModelSelection: {
           provider: "codex",
           model: "gpt-5-codex",
@@ -133,6 +138,9 @@ function makeReadModel(thread: OrchestrationReadModel["threads"][number]): Orche
         id: ProjectId.makeUnsafe("project-1"),
         title: "Project",
         workspaceRoot: "/tmp/project",
+        kind: DEFAULT_PROJECT_KIND,
+        bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+        bootstrapThreadId: null,
         defaultModelSelection: {
           provider: "codex",
           model: "gpt-5.3-codex",
@@ -154,6 +162,9 @@ function makeReadModelProject(
     id: ProjectId.makeUnsafe("project-1"),
     title: "Project",
     workspaceRoot: "/tmp/project",
+    kind: DEFAULT_PROJECT_KIND,
+    bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+    bootstrapThreadId: null,
     defaultModelSelection: {
       provider: "codex",
       model: "gpt-5.3-codex",
@@ -258,6 +269,9 @@ describe("store read model sync", () => {
           id: project2,
           name: "Project 2",
           cwd: "/tmp/project-2",
+          kind: DEFAULT_PROJECT_KIND,
+          bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+          bootstrapThreadId: null,
           defaultModelSelection: {
             provider: "codex",
             model: DEFAULT_MODEL_BY_PROVIDER.codex,
@@ -268,6 +282,9 @@ describe("store read model sync", () => {
           id: project1,
           name: "Project 1",
           cwd: "/tmp/project-1",
+          kind: DEFAULT_PROJECT_KIND,
+          bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+          bootstrapThreadId: null,
           defaultModelSelection: {
             provider: "codex",
             model: DEFAULT_MODEL_BY_PROVIDER.codex,
@@ -360,6 +377,9 @@ describe("incremental orchestration updates", () => {
           id: originalProjectId,
           name: "Project",
           cwd: "/tmp/project",
+          kind: DEFAULT_PROJECT_KIND,
+          bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+          bootstrapThreadId: null,
           defaultModelSelection: {
             provider: "codex",
             model: DEFAULT_MODEL_BY_PROVIDER.codex,
@@ -379,6 +399,9 @@ describe("incremental orchestration updates", () => {
         projectId: recreatedProjectId,
         title: "Project Recreated",
         workspaceRoot: "/tmp/project",
+        kind: DEFAULT_PROJECT_KIND,
+        bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+        bootstrapThreadId: null,
         defaultModelSelection: {
           provider: "codex",
           model: DEFAULT_MODEL_BY_PROVIDER.codex,
@@ -395,6 +418,22 @@ describe("incremental orchestration updates", () => {
     expect(next.projects[0]?.name).toBe("Project Recreated");
   });
 
+  it("updates project bootstrap state when bootstrap completes", () => {
+    const state = makeState(makeThread());
+
+    const next = applyOrchestrationEvent(
+      state,
+      makeEvent("project.bootstrap-state-set", {
+        projectId: ProjectId.makeUnsafe("project-1"),
+        bootstrapState: "bootstrapping",
+        updatedAt: "2026-02-27T00:00:01.000Z",
+      }),
+    );
+
+    expect(next.projects[0]?.bootstrapState).toBe("bootstrapping");
+    expect(next.projects[0]?.updatedAt).toBe("2026-02-27T00:00:01.000Z");
+  });
+
   it("removes stale project index entries when thread.created recreates a thread under a new project", () => {
     const originalProjectId = ProjectId.makeUnsafe("project-1");
     const recreatedProjectId = ProjectId.makeUnsafe("project-2");
@@ -409,6 +448,9 @@ describe("incremental orchestration updates", () => {
           id: originalProjectId,
           name: "Project 1",
           cwd: "/tmp/project-1",
+          kind: DEFAULT_PROJECT_KIND,
+          bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+          bootstrapThreadId: null,
           defaultModelSelection: {
             provider: "codex",
             model: DEFAULT_MODEL_BY_PROVIDER.codex,
@@ -419,6 +461,9 @@ describe("incremental orchestration updates", () => {
           id: recreatedProjectId,
           name: "Project 2",
           cwd: "/tmp/project-2",
+          kind: DEFAULT_PROJECT_KIND,
+          bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+          bootstrapThreadId: null,
           defaultModelSelection: {
             provider: "codex",
             model: DEFAULT_MODEL_BY_PROVIDER.codex,

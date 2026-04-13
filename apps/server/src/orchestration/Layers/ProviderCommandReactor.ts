@@ -6,6 +6,7 @@ import {
   type ModelSelection,
   type OrchestrationEvent,
   ProviderKind,
+  type ThreadInteractionMode,
   type OrchestrationSession,
   ThreadId,
   type ProviderSession,
@@ -14,6 +15,7 @@ import {
 } from "@t3tools/contracts";
 import { Cache, Cause, Duration, Effect, Equal, Layer, Option, Schema, Stream } from "effect";
 import { makeDrainableWorker } from "@t3tools/shared/DrainableWorker";
+import { buildDotCanvasBootstrapDeveloperInstructions } from "@t3tools/shared/dotcanvas";
 
 import { resolveThreadWorkspaceCwd } from "../../checkpointing/Utils.ts";
 import { GitCore } from "../../git/Services/GitCore.ts";
@@ -76,6 +78,13 @@ const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";
 const WORKTREE_BRANCH_PREFIX = "t3code";
 const TEMP_WORKTREE_BRANCH_PATTERN = new RegExp(`^${WORKTREE_BRANCH_PREFIX}\\/[0-9a-f]{8}$`);
 const DEFAULT_THREAD_TITLE = "New thread";
+
+function isBootstrappingDotCanvasProject(project: {
+  readonly kind: string;
+  readonly bootstrapState: string;
+}): boolean {
+  return project.kind === "dotcanvas" && project.bootstrapState === "bootstrapping";
+}
 
 function canReplaceThreadTitle(currentTitle: string, titleSeed?: string): boolean {
   const trimmedCurrentTitle = currentTitle.trim();
@@ -217,6 +226,21 @@ const make = Effect.gen(function* () {
   const resolveThread = Effect.fn("resolveThread")(function* (threadId: ThreadId) {
     const readModel = yield* orchestrationEngine.getReadModel();
     return readModel.threads.find((entry) => entry.id === threadId);
+  });
+
+  const resolveProjectForThread = Effect.fn("resolveProjectForThread")(function* (
+    threadId: ThreadId,
+  ) {
+    const readModel = yield* orchestrationEngine.getReadModel();
+    const thread = readModel.threads.find((entry) => entry.id === threadId);
+    const project = thread
+      ? (readModel.projects.find((entry) => entry.id === thread.projectId) ?? null)
+      : null;
+
+    return {
+      thread: thread ?? null,
+      project,
+    } as const;
   });
 
   const ensureSessionForThread = Effect.fn("ensureSessionForThread")(function* (
@@ -365,7 +389,11 @@ const make = Effect.gen(function* () {
     readonly attachments?: ReadonlyArray<ChatAttachment>;
     readonly capabilityMentions?: ReadonlyArray<ComposerCapabilityMention>;
     readonly modelSelection?: ModelSelection;
-    readonly interactionMode?: "default" | "plan";
+    readonly interactionMode?: ThreadInteractionMode;
+    readonly sourceProposedPlan?: {
+      readonly threadId: ThreadId;
+      readonly planId: string;
+    };
     readonly createdAt: string;
   }) {
     const thread = yield* resolveThread(input.threadId);
@@ -402,6 +430,23 @@ const make = Effect.gen(function* () {
             }
           : requestedModelSelection
         : input.modelSelection;
+    const threadProject = yield* resolveProjectForThread(input.threadId);
+    const isProjectBootstrapping =
+      threadProject.project !== null &&
+      isBootstrappingDotCanvasProject(threadProject.project) &&
+      (threadProject.project.bootstrapThreadId === null ||
+        threadProject.project.bootstrapThreadId === input.threadId);
+    const providerInteractionMode = isProjectBootstrapping
+      ? input.sourceProposedPlan
+        ? "default"
+        : "plan"
+      : input.interactionMode;
+    const developerInstructions =
+      isProjectBootstrapping && threadProject.project !== null
+        ? buildDotCanvasBootstrapDeveloperInstructions({
+            projectTitle: threadProject.project.title,
+          })
+        : undefined;
 
     yield* providerService.sendTurn({
       threadId: input.threadId,
@@ -411,7 +456,10 @@ const make = Effect.gen(function* () {
         ? { capabilityMentions: input.capabilityMentions }
         : {}),
       ...(modelForTurn !== undefined ? { modelSelection: modelForTurn } : {}),
-      ...(input.interactionMode !== undefined ? { interactionMode: input.interactionMode } : {}),
+      ...(providerInteractionMode !== undefined
+        ? { interactionMode: providerInteractionMode }
+        : {}),
+      ...(developerInstructions !== undefined ? { developerInstructions } : {}),
     });
   });
 
@@ -581,6 +629,9 @@ const make = Effect.gen(function* () {
         ? { modelSelection: event.payload.modelSelection }
         : {}),
       interactionMode: event.payload.interactionMode,
+      ...(event.payload.sourceProposedPlan !== undefined
+        ? { sourceProposedPlan: event.payload.sourceProposedPlan }
+        : {}),
       createdAt: event.payload.createdAt,
     }).pipe(
       Effect.catchCause((cause) =>

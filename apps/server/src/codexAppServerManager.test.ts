@@ -606,6 +606,37 @@ describe("sendTurn", () => {
     });
   });
 
+  it("appends custom developer instructions to the collaboration preset", async () => {
+    const { manager, context, sendRequest } = createSendTurnHarness();
+
+    await manager.sendTurn({
+      threadId: asThreadId("thread_1"),
+      input: "Kick off bootstrap",
+      interactionMode: "plan",
+      developerInstructions: "Bootstrap room overlay instructions",
+    });
+
+    expect(sendRequest).toHaveBeenCalledWith(context, "turn/start", {
+      threadId: "thread_1",
+      input: [
+        {
+          type: "text",
+          text: "Kick off bootstrap",
+          text_elements: [],
+        },
+      ],
+      model: "gpt-5.3-codex",
+      collaborationMode: {
+        mode: "plan",
+        settings: {
+          model: "gpt-5.3-codex",
+          reasoning_effort: "medium",
+          developer_instructions: `${CODEX_PLAN_MODE_DEVELOPER_INSTRUCTIONS}\n\nBootstrap room overlay instructions`,
+        },
+      },
+    });
+  });
+
   it("keeps the session model when interaction mode is set without an explicit model", async () => {
     const { manager, context, sendRequest } = createSendTurnHarness();
     context.session.model = "gpt-5.2-codex";

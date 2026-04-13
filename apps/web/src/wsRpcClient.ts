@@ -56,7 +56,10 @@ export interface WsRpcClient {
     readonly onEvent: RpcStreamMethod<typeof WS_METHODS.subscribeTerminalEvents>;
   };
   readonly projects: {
+    readonly bootstrapStart: RpcUnaryMethod<typeof WS_METHODS.projectsBootstrapStart>;
+    readonly createDirectory: RpcUnaryMethod<typeof WS_METHODS.projectsCreateDirectory>;
     readonly searchEntries: RpcUnaryMethod<typeof WS_METHODS.projectsSearchEntries>;
+    readonly statPath: RpcUnaryMethod<typeof WS_METHODS.projectsStatPath>;
     readonly writeFile: RpcUnaryMethod<typeof WS_METHODS.projectsWriteFile>;
   };
   readonly capabilities: {
@@ -68,6 +71,10 @@ export interface WsRpcClient {
       readonly cwd: Parameters<NativeApi["shell"]["openInEditor"]>[0];
       readonly editor: Parameters<NativeApi["shell"]["openInEditor"]>[1];
     }) => ReturnType<NativeApi["shell"]["openInEditor"]>;
+    readonly openInProjectApp: (input: {
+      readonly cwd: Parameters<NativeApi["shell"]["openInProjectApp"]>[0];
+      readonly app: Parameters<NativeApi["shell"]["openInProjectApp"]>[1];
+    }) => ReturnType<NativeApi["shell"]["openInProjectApp"]>;
   };
   readonly git: {
     readonly pull: RpcUnaryMethod<typeof WS_METHODS.gitPull>;
@@ -150,8 +157,14 @@ export function createWsRpcClient(transport = new WsTransport()): WsRpcClient {
         ),
     },
     projects: {
+      bootstrapStart: (input) =>
+        transport.request((client) => client[WS_METHODS.projectsBootstrapStart](input)),
+      createDirectory: (input) =>
+        transport.request((client) => client[WS_METHODS.projectsCreateDirectory](input)),
       searchEntries: (input) =>
         transport.request((client) => client[WS_METHODS.projectsSearchEntries](input)),
+      statPath: (input) =>
+        transport.request((client) => client[WS_METHODS.projectsStatPath](input)),
       writeFile: (input) =>
         transport.request((client) => client[WS_METHODS.projectsWriteFile](input)),
     },
@@ -164,6 +177,8 @@ export function createWsRpcClient(transport = new WsTransport()): WsRpcClient {
     shell: {
       openInEditor: (input) =>
         transport.request((client) => client[WS_METHODS.shellOpenInEditor](input)),
+      openInProjectApp: (input) =>
+        transport.request((client) => client[WS_METHODS.shellOpenInProjectApp](input)),
     },
     git: {
       pull: (input) => transport.request((client) => client[WS_METHODS.gitPull](input)),

@@ -6,7 +6,7 @@ import {
   DEFAULT_MODEL_BY_PROVIDER,
   ModelSelection,
   ProjectId,
-  ProviderInteractionMode,
+  ThreadInteractionMode,
   ProviderKind,
   ProviderModelOptions,
   RuntimeMode,
@@ -106,7 +106,7 @@ const PersistedComposerThreadDraftState = Schema.Struct({
   ),
   activeProvider: Schema.optionalKey(Schema.NullOr(ProviderKind)),
   runtimeMode: Schema.optionalKey(RuntimeMode),
-  interactionMode: Schema.optionalKey(ProviderInteractionMode),
+  interactionMode: Schema.optionalKey(ThreadInteractionMode),
 });
 type PersistedComposerThreadDraftState = typeof PersistedComposerThreadDraftState.Type;
 
@@ -154,7 +154,7 @@ const PersistedDraftThreadState = Schema.Struct({
   projectId: ProjectId,
   createdAt: Schema.String,
   runtimeMode: RuntimeMode,
-  interactionMode: ProviderInteractionMode,
+  interactionMode: ThreadInteractionMode,
   branch: Schema.NullOr(Schema.String),
   worktreePath: Schema.NullOr(Schema.String),
   envMode: DraftThreadEnvModeSchema,
@@ -187,14 +187,14 @@ export interface ComposerThreadDraftState {
   modelSelectionByProvider: Partial<Record<ProviderKind, ModelSelection>>;
   activeProvider: ProviderKind | null;
   runtimeMode: RuntimeMode | null;
-  interactionMode: ProviderInteractionMode | null;
+  interactionMode: ThreadInteractionMode | null;
 }
 
 export interface DraftThreadState {
   projectId: ProjectId;
   createdAt: string;
   runtimeMode: RuntimeMode;
-  interactionMode: ProviderInteractionMode;
+  interactionMode: ThreadInteractionMode;
   branch: string | null;
   worktreePath: string | null;
   envMode: DraftThreadEnvMode;
@@ -221,7 +221,7 @@ interface ComposerDraftStoreState {
       createdAt?: string;
       envMode?: DraftThreadEnvMode;
       runtimeMode?: RuntimeMode;
-      interactionMode?: ProviderInteractionMode;
+      interactionMode?: ThreadInteractionMode;
     },
   ) => void;
   setDraftThreadContext: (
@@ -233,7 +233,7 @@ interface ComposerDraftStoreState {
       createdAt?: string;
       envMode?: DraftThreadEnvMode;
       runtimeMode?: RuntimeMode;
-      interactionMode?: ProviderInteractionMode;
+      interactionMode?: ThreadInteractionMode;
     },
   ) => void;
   clearProjectDraftThreadId: (projectId: ProjectId) => void;
@@ -267,7 +267,7 @@ interface ComposerDraftStoreState {
   setRuntimeMode: (threadId: ThreadId, runtimeMode: RuntimeMode | null | undefined) => void;
   setInteractionMode: (
     threadId: ThreadId,
-    interactionMode: ProviderInteractionMode | null | undefined,
+    interactionMode: ThreadInteractionMode | null | undefined,
   ) => void;
   addImage: (threadId: ThreadId, image: ComposerImageAttachment) => void;
   addImages: (threadId: ThreadId, images: ComposerImageAttachment[]) => void;

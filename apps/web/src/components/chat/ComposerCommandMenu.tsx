@@ -210,12 +210,12 @@ export const ComposerCommandMenu = memo(function ComposerCommandMenu(props: {
               ? props.triggerKind === "capability"
                 ? "Searching capabilities..."
                 : "Searching workspace files..."
-              : props.emptyStateText ??
+              : (props.emptyStateText ??
                 (props.triggerKind === "path"
                   ? "No matching files or folders."
                   : props.triggerKind === "capability"
                     ? "No matching capabilities."
-                    : "No matching command.")}
+                    : "No matching command."))}
           </p>
         )}
       </div>

@@ -2,6 +2,8 @@ import {
   CheckpointRef,
   CommandId,
   CorrelationId,
+  DEFAULT_PROJECT_KIND,
+  DEFAULT_PROJECT_BOOTSTRAP_STATE,
   EventId,
   MessageId,
   ProjectId,
@@ -45,6 +47,11 @@ const exists = (filePath: string) =>
     return fileInfo._tag === "Success";
   });
 
+const defaultProjectFields = {
+  kind: DEFAULT_PROJECT_KIND,
+  bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+} as const;
+
 const BaseTestLayer = makeProjectionPipelinePrefixedTestLayer("t3-projection-pipeline-test-");
 
 it.layer(BaseTestLayer)("OrchestrationProjectionPipeline", (it) => {
@@ -69,6 +76,7 @@ it.layer(BaseTestLayer)("OrchestrationProjectionPipeline", (it) => {
           projectId: ProjectId.makeUnsafe("project-1"),
           title: "Project 1",
           workspaceRoot: "/tmp/project-1",
+          ...defaultProjectFields,
           defaultModelSelection: null,
           scripts: [],
           createdAt: now,
@@ -341,6 +349,7 @@ it.layer(BaseTestLayer)("OrchestrationProjectionPipeline", (it) => {
             projectId: ProjectId.makeUnsafe("project-clear-attachments"),
             title: "Project Clear Attachments",
             workspaceRoot: "/tmp/project-clear-attachments",
+            ...defaultProjectFields,
             defaultModelSelection: null,
             scripts: [],
             createdAt: now,
@@ -469,6 +478,7 @@ it.layer(
           projectId: ProjectId.makeUnsafe("project-overwrite"),
           title: "Project Overwrite",
           workspaceRoot: "/tmp/project-overwrite",
+          ...defaultProjectFields,
           defaultModelSelection: null,
           scripts: [],
           createdAt: now,
@@ -617,6 +627,7 @@ it.layer(
           projectId: ProjectId.makeUnsafe("project-rollback"),
           title: "Project Rollback",
           workspaceRoot: "/tmp/project-rollback",
+          ...defaultProjectFields,
           defaultModelSelection: null,
           scripts: [],
           createdAt: now,
@@ -746,6 +757,7 @@ it.layer(
           projectId: ProjectId.makeUnsafe("project-revert-files"),
           title: "Project Revert Files",
           workspaceRoot: "/tmp/project-revert-files",
+          ...defaultProjectFields,
           defaultModelSelection: null,
           scripts: [],
           createdAt: now,
@@ -954,6 +966,7 @@ it.layer(Layer.fresh(makeProjectionPipelinePrefixedTestLayer("t3-projection-atta
             projectId: ProjectId.makeUnsafe("project-delete-files"),
             title: "Project Delete Files",
             workspaceRoot: "/tmp/project-delete-files",
+            ...defaultProjectFields,
             defaultModelSelection: null,
             scripts: [],
             createdAt: now,
@@ -1117,6 +1130,7 @@ it.layer(BaseTestLayer)("OrchestrationProjectionPipeline", (it) => {
           projectId: ProjectId.makeUnsafe("project-a"),
           title: "Project A",
           workspaceRoot: "/tmp/project-a",
+          ...defaultProjectFields,
           defaultModelSelection: null,
           scripts: [],
           createdAt: now,
@@ -1244,6 +1258,7 @@ it.layer(BaseTestLayer)("OrchestrationProjectionPipeline", (it) => {
           projectId: ProjectId.makeUnsafe("project-empty"),
           title: "Project Empty",
           workspaceRoot: "/tmp/project-empty",
+          ...defaultProjectFields,
           defaultModelSelection: null,
           scripts: [],
           createdAt: now,
@@ -1384,6 +1399,7 @@ it.layer(BaseTestLayer)("OrchestrationProjectionPipeline", (it) => {
             projectId: ProjectId.makeUnsafe("project-conflict"),
             title: "Project Conflict",
             workspaceRoot: "/tmp/project-conflict",
+            ...defaultProjectFields,
             defaultModelSelection: null,
             scripts: [],
             createdAt: "2026-02-26T13:00:00.000Z",
@@ -1528,6 +1544,7 @@ it.layer(BaseTestLayer)("OrchestrationProjectionPipeline", (it) => {
           projectId: ProjectId.makeUnsafe("project-revert"),
           title: "Project Revert",
           workspaceRoot: "/tmp/project-revert",
+          ...defaultProjectFields,
           defaultModelSelection: null,
           scripts: [],
           createdAt: "2026-02-26T12:00:00.000Z",
@@ -1869,6 +1886,7 @@ engineLayer("OrchestrationProjectionPipeline via engine dispatch", (it) => {
         projectId: ProjectId.makeUnsafe("project-live"),
         title: "Live Project",
         workspaceRoot: "/tmp/project-live",
+        ...defaultProjectFields,
         defaultModelSelection: {
           provider: "codex",
           model: "gpt-5-codex",
@@ -1907,6 +1925,7 @@ engineLayer("OrchestrationProjectionPipeline via engine dispatch", (it) => {
         projectId: ProjectId.makeUnsafe("project-scripts"),
         title: "Scripts Project",
         workspaceRoot: "/tmp/project-scripts",
+        ...defaultProjectFields,
         defaultModelSelection: {
           provider: "codex",
           model: "gpt-5-codex",

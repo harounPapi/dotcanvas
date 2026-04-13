@@ -10,7 +10,9 @@ import type {
 import {
   ApprovalRequestId,
   CommandId,
-  DEFAULT_PROVIDER_INTERACTION_MODE,
+  DEFAULT_THREAD_INTERACTION_MODE,
+  DEFAULT_PROJECT_KIND,
+  DEFAULT_PROJECT_BOOTSTRAP_STATE,
   EventId,
   MessageId,
   ProjectId,
@@ -19,6 +21,11 @@ import {
   ThreadId,
   TurnId,
 } from "@t3tools/contracts";
+import {
+  DOTCANVAS_BOOTSTRAP_MARKER_RELATIVE_PATH,
+  DOTCANVAS_REQUIRED_SCAFFOLD_PATHS,
+  parseDotCanvasBootstrapMarkerContents,
+} from "@t3tools/shared/dotcanvas";
 import { Effect, Exit, Layer, ManagedRuntime, PubSub, Scope, Stream } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -160,12 +167,46 @@ async function waitForThread(
   return poll();
 }
 
+async function waitForProject(
+  engine: OrchestrationEngineShape,
+  predicate: (project: ProviderRuntimeTestReadModel["projects"][number]) => boolean,
+  timeoutMs = 2_000,
+  projectId: ProjectId = asProjectId("project-1"),
+) {
+  const deadline = Date.now() + timeoutMs;
+  const poll = async (): Promise<ProviderRuntimeTestReadModel["projects"][number]> => {
+    const readModel = await Effect.runPromise(engine.getReadModel());
+    const project = readModel.projects.find((entry) => entry.id === projectId);
+    if (project && predicate(project)) {
+      return project;
+    }
+    if (Date.now() >= deadline) {
+      throw new Error("Timed out waiting for project state");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    return poll();
+  };
+  return poll();
+}
+
 type ProviderRuntimeTestReadModel = OrchestrationReadModel;
 type ProviderRuntimeTestThread = ProviderRuntimeTestReadModel["threads"][number];
 type ProviderRuntimeTestMessage = ProviderRuntimeTestThread["messages"][number];
 type ProviderRuntimeTestProposedPlan = ProviderRuntimeTestThread["proposedPlans"][number];
 type ProviderRuntimeTestActivity = ProviderRuntimeTestThread["activities"][number];
 type ProviderRuntimeTestCheckpoint = ProviderRuntimeTestThread["checkpoints"][number];
+
+function writeDotCanvasScaffold(workspaceRoot: string): void {
+  for (const requirement of DOTCANVAS_REQUIRED_SCAFFOLD_PATHS) {
+    const absolutePath = path.join(workspaceRoot, requirement.relativePath);
+    fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+    if (requirement.kind === "directory") {
+      fs.mkdirSync(absolutePath, { recursive: true });
+      continue;
+    }
+    fs.writeFileSync(absolutePath, `# ${requirement.relativePath}\n`, "utf8");
+  }
+}
 
 describe("ProviderRuntimeIngestion", () => {
   let runtime: ManagedRuntime.ManagedRuntime<
@@ -195,7 +236,14 @@ describe("ProviderRuntimeIngestion", () => {
     }
   });
 
-  async function createHarness(options?: { serverSettings?: Partial<ServerSettings> }) {
+  async function createHarness(options?: {
+    serverSettings?: Partial<ServerSettings>;
+    project?: {
+      kind?: "plain" | "dotcanvas";
+      bootstrapState?: "ready" | "bootstrapping";
+      bootstrapThreadId?: ThreadId | null;
+    };
+  }) {
     const workspaceRoot = makeTempDir("t3-provider-project-");
     fs.mkdirSync(path.join(workspaceRoot, ".git"));
     const provider = createProviderServiceHarness();
@@ -229,6 +277,9 @@ describe("ProviderRuntimeIngestion", () => {
         projectId: asProjectId("project-1"),
         title: "Provider Project",
         workspaceRoot,
+        kind: options?.project?.kind ?? DEFAULT_PROJECT_KIND,
+        bootstrapState: options?.project?.bootstrapState ?? DEFAULT_PROJECT_BOOTSTRAP_STATE,
+        bootstrapThreadId: options?.project?.bootstrapThreadId ?? null,
         defaultModelSelection: {
           provider: "codex",
           model: "gpt-5-codex",
@@ -247,7 +298,7 @@ describe("ProviderRuntimeIngestion", () => {
           provider: "codex",
           model: "gpt-5-codex",
         },
-        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        interactionMode: DEFAULT_THREAD_INTERACTION_MODE,
         runtimeMode: "approval-required",
         branch: null,
         worktreePath: null,
@@ -285,6 +336,7 @@ describe("ProviderRuntimeIngestion", () => {
       emit: provider.emit,
       setProviderSession: provider.setSession,
       drain,
+      workspaceRoot,
     };
   }
 
@@ -811,7 +863,7 @@ describe("ProviderRuntimeIngestion", () => {
           provider: "codex",
           model: "gpt-5-codex",
         },
-        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        interactionMode: DEFAULT_THREAD_INTERACTION_MODE,
         runtimeMode: "approval-required",
         branch: null,
         worktreePath: null,
@@ -892,7 +944,7 @@ describe("ProviderRuntimeIngestion", () => {
           threadId: sourceThreadId,
           planId: sourcePlan.id,
         },
-        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        interactionMode: DEFAULT_THREAD_INTERACTION_MODE,
         runtimeMode: "approval-required",
         createdAt: new Date().toISOString(),
       }),
@@ -1061,7 +1113,7 @@ describe("ProviderRuntimeIngestion", () => {
           threadId: sourceThreadId,
           planId: sourcePlan.id,
         },
-        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        interactionMode: DEFAULT_THREAD_INTERACTION_MODE,
         runtimeMode: "approval-required",
         createdAt: new Date().toISOString(),
       }),
@@ -1094,6 +1146,135 @@ describe("ProviderRuntimeIngestion", () => {
     );
     expect(targetThreadAfterRejectedStart?.session?.status).toBe("running");
     expect(targetThreadAfterRejectedStart?.session?.activeTurnId).toBe(activeTurnId);
+  });
+
+  it("completes bootstrap from the persisted turn row after the pending start is cleared", async () => {
+    const harness = await createHarness({
+      project: {
+        kind: "dotcanvas",
+        bootstrapState: "bootstrapping",
+        bootstrapThreadId: asThreadId("thread-1"),
+      },
+    });
+    const sourceThreadId = asThreadId("thread-1");
+    const sourceTurnId = asTurnId("turn-bootstrap-plan");
+    const targetTurnId = asTurnId("turn-bootstrap-apply");
+    const createdAt = new Date().toISOString();
+
+    writeDotCanvasScaffold(harness.workspaceRoot);
+
+    harness.emit({
+      type: "turn.proposed.completed",
+      eventId: asEventId("evt-bootstrap-plan-source-completed"),
+      provider: "codex",
+      createdAt,
+      threadId: sourceThreadId,
+      turnId: sourceTurnId,
+      payload: {
+        planMarkdown: "# Bootstrap plan",
+      },
+    });
+
+    const sourceThreadWithPlan = await waitForThread(harness.engine, (thread) =>
+      thread.proposedPlans.some(
+        (proposedPlan: ProviderRuntimeTestProposedPlan) =>
+          proposedPlan.id === "plan:thread-1:turn:turn-bootstrap-plan" &&
+          proposedPlan.implementedAt === null,
+      ),
+    );
+    const sourcePlan = sourceThreadWithPlan.proposedPlans.find(
+      (entry: ProviderRuntimeTestProposedPlan) =>
+        entry.id === "plan:thread-1:turn:turn-bootstrap-plan",
+    );
+    expect(sourcePlan).toBeDefined();
+    if (!sourcePlan) {
+      throw new Error("Expected bootstrap source plan to exist.");
+    }
+
+    await Effect.runPromise(
+      harness.engine.dispatch({
+        type: "thread.turn.start",
+        commandId: CommandId.makeUnsafe("cmd-bootstrap-turn-start"),
+        threadId: sourceThreadId,
+        message: {
+          messageId: asMessageId("msg-bootstrap-apply"),
+          role: "user",
+          text: "PLEASE IMPLEMENT THIS PLAN:\n# Bootstrap plan",
+          attachments: [],
+        },
+        sourceProposedPlan: {
+          threadId: sourceThreadId,
+          planId: sourcePlan.id,
+        },
+        interactionMode: DEFAULT_THREAD_INTERACTION_MODE,
+        runtimeMode: "approval-required",
+        createdAt: new Date().toISOString(),
+      }),
+    );
+
+    harness.setProviderSession({
+      provider: "codex",
+      status: "running",
+      runtimeMode: "approval-required",
+      threadId: sourceThreadId,
+      createdAt,
+      updatedAt: createdAt,
+      activeTurnId: targetTurnId,
+    });
+
+    harness.emit({
+      type: "turn.started",
+      eventId: asEventId("evt-bootstrap-target-started"),
+      provider: "codex",
+      createdAt: new Date().toISOString(),
+      threadId: sourceThreadId,
+      turnId: targetTurnId,
+    });
+
+    await waitForThread(
+      harness.engine,
+      (thread) =>
+        thread.session?.status === "running" &&
+        thread.session?.activeTurnId === targetTurnId &&
+        thread.proposedPlans.some(
+          (proposedPlan: ProviderRuntimeTestProposedPlan) =>
+            proposedPlan.id === sourcePlan.id &&
+            proposedPlan.implementedAt !== null &&
+            proposedPlan.implementationThreadId === sourceThreadId,
+        ),
+    );
+
+    harness.emit({
+      type: "turn.completed",
+      eventId: asEventId("evt-bootstrap-target-completed"),
+      provider: "codex",
+      createdAt: new Date().toISOString(),
+      threadId: sourceThreadId,
+      turnId: targetTurnId,
+      payload: {
+        state: "completed",
+      },
+    });
+
+    const project = await waitForProject(
+      harness.engine,
+      (entry) => entry.bootstrapState === "ready",
+    );
+    expect(project.bootstrapThreadId).toBe("thread-1");
+
+    const thread = await waitForThread(
+      harness.engine,
+      (entry) => entry.session?.status === "ready" && entry.session?.activeTurnId === null,
+    );
+    expect(thread.session?.status).toBe("ready");
+    expect(
+      parseDotCanvasBootstrapMarkerContents(
+        fs.readFileSync(
+          path.join(harness.workspaceRoot, DOTCANVAS_BOOTSTRAP_MARKER_RELATIVE_PATH),
+          "utf8",
+        ),
+      ),
+    ).toBe(true);
   });
 
   it("does not mark the source proposed plan implemented for an unrelated turn.started when no thread active turn is tracked", async () => {
@@ -1151,7 +1332,7 @@ describe("ProviderRuntimeIngestion", () => {
           provider: "codex",
           model: "gpt-5-codex",
         },
-        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        interactionMode: DEFAULT_THREAD_INTERACTION_MODE,
         runtimeMode: "approval-required",
         branch: null,
         worktreePath: null,
@@ -1223,7 +1404,7 @@ describe("ProviderRuntimeIngestion", () => {
           threadId: sourceThreadId,
           planId: sourcePlan.id,
         },
-        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        interactionMode: DEFAULT_THREAD_INTERACTION_MODE,
         runtimeMode: "approval-required",
         createdAt: new Date().toISOString(),
       }),
@@ -1413,7 +1594,7 @@ describe("ProviderRuntimeIngestion", () => {
           text: "stream please",
           attachments: [],
         },
-        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        interactionMode: DEFAULT_THREAD_INTERACTION_MODE,
         runtimeMode: "approval-required",
         createdAt: now,
       }),
@@ -2271,6 +2452,48 @@ describe("ProviderRuntimeIngestion", () => {
         (entry: ProviderRuntimeTestProposedPlan) => entry.id === "plan:thread-1:turn:turn-task-1",
       )?.planMarkdown,
     ).toBe("# Plan title");
+  });
+
+  it("normalizes bootstrap-thread plan tasks into bootstrap activity labels", async () => {
+    const harness = await createHarness({
+      project: {
+        kind: "dotcanvas",
+        bootstrapState: "bootstrapping",
+        bootstrapThreadId: asThreadId("thread-1"),
+      },
+    });
+    const now = new Date().toISOString();
+
+    harness.emit({
+      type: "task.started",
+      eventId: asEventId("evt-task-started-start-mode"),
+      provider: "codex",
+      createdAt: now,
+      threadId: asThreadId("thread-1"),
+      turnId: asTurnId("turn-task-start-1"),
+      payload: {
+        taskId: "turn-task-start-1",
+        taskType: "plan",
+      },
+    });
+
+    const thread = await waitForThread(harness.engine, (entry) =>
+      entry.activities.some(
+        (activity: ProviderRuntimeTestActivity) => activity.id === "evt-task-started-start-mode",
+      ),
+    );
+
+    const started = thread.activities.find(
+      (activity: ProviderRuntimeTestActivity) => activity.id === "evt-task-started-start-mode",
+    );
+    const payload =
+      started?.payload && typeof started.payload === "object"
+        ? (started.payload as Record<string, unknown>)
+        : undefined;
+
+    expect(started?.kind).toBe("task.started");
+    expect(started?.summary).toBe("Bootstrap planning started");
+    expect(payload?.taskType).toBe("bootstrap");
   });
 
   it("projects structured user input request and resolution as thread activities", async () => {

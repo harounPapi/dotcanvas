@@ -2,6 +2,7 @@ import {
   ApprovalRequestId,
   type AssistantDeliveryMode,
   CommandId,
+  EventId,
   MessageId,
   type OrchestrationEvent,
   type OrchestrationProposedPlanId,
@@ -13,8 +14,13 @@ import {
   type OrchestrationThreadActivity,
   type ProviderRuntimeEvent,
 } from "@t3tools/contracts";
-import { Cache, Cause, Duration, Effect, Layer, Option, Stream } from "effect";
+import { Cache, Cause, Duration, Effect, FileSystem, Layer, Option, Path, Stream } from "effect";
 import { makeDrainableWorker } from "@t3tools/shared/DrainableWorker";
+import {
+  buildDotCanvasBootstrapMarkerContents,
+  DOTCANVAS_BOOTSTRAP_MARKER_RELATIVE_PATH,
+  DOTCANVAS_REQUIRED_SCAFFOLD_PATHS,
+} from "@t3tools/shared/dotcanvas";
 
 import { ProviderService } from "../../provider/Services/ProviderService.ts";
 import { ProjectionTurnRepository } from "../../persistence/Services/ProjectionTurns.ts";
@@ -160,6 +166,7 @@ function requestKindFromCanonicalRequestType(
 
 function runtimeEventToActivities(
   event: ProviderRuntimeEvent,
+  isBootstrapThread?: boolean,
 ): ReadonlyArray<OrchestrationThreadActivity> {
   const maybeSequence = (() => {
     const eventWithSequence = event as ProviderRuntimeEvent & { sessionSequence?: number };
@@ -315,6 +322,10 @@ function runtimeEventToActivities(
     }
 
     case "task.started": {
+      const taskType =
+        isBootstrapThread && event.payload.taskType === "plan"
+          ? "bootstrap"
+          : event.payload.taskType;
       return [
         {
           id: event.eventId,
@@ -322,14 +333,16 @@ function runtimeEventToActivities(
           tone: "info",
           kind: "task.started",
           summary:
-            event.payload.taskType === "plan"
+            taskType === "plan"
               ? "Plan task started"
-              : event.payload.taskType
-                ? `${event.payload.taskType} task started`
-                : "Task started",
+              : taskType === "bootstrap"
+                ? "Bootstrap planning started"
+                : taskType
+                  ? `${taskType} task started`
+                  : "Task started",
           payload: {
             taskId: event.payload.taskId,
-            ...(event.payload.taskType ? { taskType: event.payload.taskType } : {}),
+            ...(taskType ? { taskType } : {}),
             ...(event.payload.description
               ? { detail: truncateDetail(event.payload.description) }
               : {}),
@@ -505,6 +518,8 @@ const make = Effect.fn("make")(function* () {
   const providerService = yield* ProviderService;
   const projectionTurnRepository = yield* ProjectionTurnRepository;
   const serverSettingsService = yield* ServerSettingsService;
+  const fileSystem = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
 
   const turnMessageIdsByTurnKey = yield* Cache.make<string, Set<MessageId>>({
     capacity: TURN_MESSAGE_IDS_BY_TURN_CACHE_CAPACITY,
@@ -818,6 +833,29 @@ const make = Effect.fn("make")(function* () {
     } as const;
   });
 
+  const getSourceProposedPlanReferenceForPersistedTurn = Effect.fn(
+    "getSourceProposedPlanReferenceForPersistedTurn",
+  )(function* (threadId: ThreadId, turnId: TurnId) {
+    const turn = yield* projectionTurnRepository.getByTurnId({
+      threadId,
+      turnId,
+    });
+    if (Option.isNone(turn)) {
+      return null;
+    }
+
+    const sourceThreadId = turn.value.sourceProposedPlanThreadId;
+    const sourcePlanId = turn.value.sourceProposedPlanId;
+    if (sourceThreadId === null || sourcePlanId === null) {
+      return null;
+    }
+
+    return {
+      sourceThreadId,
+      sourcePlanId,
+    } as const;
+  });
+
   const getExpectedProviderTurnIdForThread = Effect.fn("getExpectedProviderTurnIdForThread")(
     function* (threadId: ThreadId) {
       const sessions = yield* providerService.listSessions();
@@ -835,6 +873,32 @@ const make = Effect.fn("make")(function* () {
 
     const expectedTurnId = yield* getExpectedProviderTurnIdForThread(threadId);
     if (!sameId(expectedTurnId, eventTurnId)) {
+      return null;
+    }
+
+    return yield* getSourceProposedPlanReferenceForPendingTurnStart(threadId);
+  });
+
+  const getSourceProposedPlanReferenceForAcceptedTurnCompletion = Effect.fn(
+    "getSourceProposedPlanReferenceForAcceptedTurnCompletion",
+  )(function* (threadId: ThreadId, eventTurnId: TurnId | undefined) {
+    if (eventTurnId === undefined) {
+      return yield* getSourceProposedPlanReferenceForPendingTurnStart(threadId);
+    }
+
+    const persistedTurnSourcePlan = yield* getSourceProposedPlanReferenceForPersistedTurn(
+      threadId,
+      eventTurnId,
+    );
+    if (persistedTurnSourcePlan !== null) {
+      return persistedTurnSourcePlan;
+    }
+
+    const persistedTurn = yield* projectionTurnRepository.getByTurnId({
+      threadId,
+      turnId: eventTurnId,
+    });
+    if (Option.isSome(persistedTurn)) {
       return null;
     }
 
@@ -872,12 +936,99 @@ const make = Effect.fn("make")(function* () {
     },
   );
 
+  const validateBootstrapScaffold = Effect.fn("validateBootstrapScaffold")(function* (input: {
+    readonly workspaceRoot: string;
+  }) {
+    const missingPaths: string[] = [];
+
+    for (const requirement of DOTCANVAS_REQUIRED_SCAFFOLD_PATHS) {
+      const absolutePath = path.resolve(input.workspaceRoot, requirement.relativePath);
+      const stat = yield* fileSystem
+        .stat(absolutePath)
+        .pipe(Effect.catch(() => Effect.succeed(null)));
+      const kind = stat?.type === "File" ? "file" : stat?.type === "Directory" ? "directory" : null;
+      if (!stat || kind !== requirement.kind) {
+        missingPaths.push(requirement.relativePath);
+      }
+    }
+
+    return {
+      valid: missingPaths.length === 0,
+      missingPaths,
+    } as const;
+  });
+
+  const maybeCompleteProjectBootstrap = Effect.fn("maybeCompleteProjectBootstrap")(
+    function* (input: {
+      readonly threadId: ThreadId;
+      readonly turnId?: TurnId;
+      readonly completedAt: string;
+    }) {
+      const readModel = yield* orchestrationEngine.getReadModel();
+      const thread = readModel.threads.find((entry) => entry.id === input.threadId);
+      if (!thread) {
+        return;
+      }
+      const project = readModel.projects.find((entry) => entry.id === thread.projectId);
+      if (
+        !project ||
+        project.kind !== "dotcanvas" ||
+        project.bootstrapState !== "bootstrapping" ||
+        (project.bootstrapThreadId !== null && project.bootstrapThreadId !== thread.id)
+      ) {
+        return;
+      }
+
+      const scaffold = yield* validateBootstrapScaffold({
+        workspaceRoot: project.workspaceRoot,
+      });
+      if (!scaffold.valid) {
+        yield* orchestrationEngine.dispatch({
+          type: "thread.activity.append",
+          commandId: CommandId.makeUnsafe(`bootstrap-validation:${crypto.randomUUID()}`),
+          threadId: thread.id,
+          activity: {
+            id: EventId.makeUnsafe(`bootstrap-validation:${crypto.randomUUID()}`),
+            tone: "error",
+            kind: "bootstrap.validation.failed",
+            summary: "Bootstrap could not be completed",
+            payload: {
+              missingPaths: scaffold.missingPaths,
+            },
+            turnId: input.turnId ?? null,
+            createdAt: input.completedAt,
+          },
+          createdAt: input.completedAt,
+        });
+        return;
+      }
+
+      yield* fileSystem.writeFileString(
+        path.resolve(project.workspaceRoot, DOTCANVAS_BOOTSTRAP_MARKER_RELATIVE_PATH),
+        buildDotCanvasBootstrapMarkerContents({ bootstrapped: true }),
+      );
+
+      yield* orchestrationEngine.dispatch({
+        type: "project.bootstrap-state.set",
+        commandId: CommandId.makeUnsafe(`project-bootstrap-ready:${crypto.randomUUID()}`),
+        projectId: project.id,
+        bootstrapState: "ready",
+        createdAt: input.completedAt,
+      });
+    },
+  );
+
   const processRuntimeEvent = Effect.fn("processRuntimeEvent")(function* (
     event: ProviderRuntimeEvent,
   ) {
     const readModel = yield* orchestrationEngine.getReadModel();
     const thread = readModel.threads.find((entry) => entry.id === event.threadId);
     if (!thread) return;
+    const project = readModel.projects.find((entry) => entry.id === thread.projectId) ?? null;
+    const isBootstrapThread =
+      project?.kind === "dotcanvas" &&
+      project.bootstrapState === "bootstrapping" &&
+      (project.bootstrapThreadId === null || project.bootstrapThreadId === thread.id);
 
     const now = event.createdAt;
     const eventTurnId = toTurnId(event.turnId);
@@ -916,6 +1067,10 @@ const make = Effect.fn("make")(function* () {
     const acceptedTurnStartedSourcePlan =
       event.type === "turn.started" && shouldApplyThreadLifecycle
         ? yield* getSourceProposedPlanReferenceForAcceptedTurnStart(thread.id, eventTurnId)
+        : null;
+    const acceptedTurnCompletedSourcePlan =
+      event.type === "turn.completed" && shouldApplyThreadLifecycle
+        ? yield* getSourceProposedPlanReferenceForAcceptedTurnCompletion(thread.id, eventTurnId)
         : null;
 
     if (
@@ -992,6 +1147,26 @@ const make = Effect.fn("make")(function* () {
           },
           createdAt: now,
         });
+
+        if (
+          event.type === "turn.completed" &&
+          acceptedTurnCompletedSourcePlan !== null &&
+          normalizeRuntimeTurnState(event.payload.state) === "completed"
+        ) {
+          yield* maybeCompleteProjectBootstrap({
+            threadId: thread.id,
+            completedAt: now,
+            ...(eventTurnId ? { turnId: eventTurnId } : {}),
+          }).pipe(
+            Effect.catchCause((cause) =>
+              Effect.logWarning("provider runtime ingestion failed to complete bootstrap", {
+                eventId: event.eventId,
+                eventType: event.type,
+                cause: Cause.pretty(cause),
+              }),
+            ),
+          );
+        }
       }
     }
 
@@ -1210,7 +1385,7 @@ const make = Effect.fn("make")(function* () {
       }
     }
 
-    const activities = runtimeEventToActivities(event);
+    const activities = runtimeEventToActivities(event, isBootstrapThread);
     yield* Effect.forEach(activities, (activity) =>
       orchestrationEngine.dispatch({
         type: "thread.activity.append",

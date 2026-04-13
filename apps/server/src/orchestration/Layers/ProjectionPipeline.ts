@@ -382,6 +382,9 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
             projectId: event.payload.projectId,
             title: event.payload.title,
             workspaceRoot: event.payload.workspaceRoot,
+            kind: event.payload.kind,
+            bootstrapState: event.payload.bootstrapState,
+            bootstrapThreadId: event.payload.bootstrapThreadId,
             defaultModelSelection: event.payload.defaultModelSelection,
             scripts: event.payload.scripts,
             createdAt: event.payload.createdAt,
@@ -403,10 +406,28 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
             ...(event.payload.workspaceRoot !== undefined
               ? { workspaceRoot: event.payload.workspaceRoot }
               : {}),
+            ...(event.payload.bootstrapThreadId !== undefined
+              ? { bootstrapThreadId: event.payload.bootstrapThreadId }
+              : {}),
             ...(event.payload.defaultModelSelection !== undefined
               ? { defaultModelSelection: event.payload.defaultModelSelection }
               : {}),
             ...(event.payload.scripts !== undefined ? { scripts: event.payload.scripts } : {}),
+            updatedAt: event.payload.updatedAt,
+          });
+          return;
+        }
+
+        case "project.bootstrap-state-set": {
+          const existingRow = yield* projectionProjectRepository.getById({
+            projectId: event.payload.projectId,
+          });
+          if (Option.isNone(existingRow)) {
+            return;
+          }
+          yield* projectionProjectRepository.upsert({
+            ...existingRow.value,
+            bootstrapState: event.payload.bootstrapState,
             updatedAt: event.payload.updatedAt,
           });
           return;

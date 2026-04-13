@@ -1,5 +1,5 @@
 import {
-  type ApprovalRequestId,
+  ApprovalRequestId,
   type CapabilitySearchResult,
   type ComposerCapabilityMention,
   DEFAULT_MODEL_BY_PROVIDER,
@@ -19,7 +19,7 @@ import {
   type TurnId,
   type KeybindingCommand,
   OrchestrationThreadActivity,
-  ProviderInteractionMode,
+  ThreadInteractionMode,
   RuntimeMode,
   TerminalOpenInput,
 } from "@t3tools/contracts";
@@ -106,6 +106,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
 import { Separator } from "./ui/separator";
 import { cn, randomUUID } from "~/lib/utils";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
@@ -118,8 +119,10 @@ import {
   projectScriptIdFromCommand,
 } from "~/projectScripts";
 import { SidebarTrigger } from "./ui/sidebar";
+import { ProjectCreationSurface } from "./ProjectCreationSurface";
 import { newCommandId, newMessageId, newThreadId } from "~/lib/utils";
 import { readNativeApi } from "~/nativeApi";
+import { isDotCanvasBootstrapThread, isDotCanvasProjectBootstrapping } from "../dotcanvasProject";
 import {
   getProviderModelCapabilities,
   getProviderModels,
@@ -197,6 +200,7 @@ import {
 import { useLocalStorage } from "~/hooks/useLocalStorage";
 import {
   useServerAvailableEditors,
+  useServerAvailableProjectApps,
   useServerConfig,
   useServerKeybindings,
 } from "~/rpc/serverState";
@@ -372,8 +376,7 @@ function capabilityAppTokenLabel(name: string, appId: string): string {
     .trim()
     .toLowerCase()
     .split(/[/:]/)
-    .filter((segment) => segment.length > 0)
-    .at(-1);
+    .findLast((segment) => segment.length > 0);
   return normalizedAppId && normalizedAppId.length > 0 ? normalizedAppId : "app";
 }
 
@@ -400,7 +403,10 @@ function stripCapabilityPluginPrefix(name: string, pluginName: string): string {
   return name.startsWith(prefix) ? name.slice(prefix.length) : name;
 }
 
-function capabilitySkillSourceLabel(scope: "project" | "user" | "plugin", pluginName?: string): string {
+function capabilitySkillSourceLabel(
+  scope: "project" | "user" | "plugin",
+  pluginName?: string,
+): string {
   if (scope === "project") {
     return "Project skill";
   }
@@ -934,7 +940,13 @@ export default function ChatView({ threadId }: ChatViewProps) {
         ),
       );
     },
-    [composerTerminalContexts, removeComposerDraftTerminalContext, setPrompt, threadId],
+    [
+      composerCapabilityMentions,
+      composerTerminalContexts,
+      removeComposerDraftTerminalContext,
+      setPrompt,
+      threadId,
+    ],
   );
 
   const fallbackDraftProject = useProjectById(draftThread?.projectId);
@@ -957,7 +969,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const activeThread = serverThread ?? localDraftThread;
   const runtimeMode =
     composerDraft.runtimeMode ?? activeThread?.runtimeMode ?? DEFAULT_RUNTIME_MODE;
-  const interactionMode =
+  const draftOrThreadInteractionMode =
     composerDraft.interactionMode ?? activeThread?.interactionMode ?? DEFAULT_INTERACTION_MODE;
   const isServerThread = serverThread !== undefined;
   const isLocalDraftThread = !isServerThread && localDraftThread !== undefined;
@@ -1003,6 +1015,13 @@ export default function ChatView({ threadId }: ChatViewProps) {
   }, [activeThreadId, existingOpenTerminalThreadIds, terminalState.terminalOpen]);
   const latestTurnSettled = isLatestTurnSettled(activeLatestTurn, activeThread?.session ?? null);
   const activeProject = useProjectById(activeThread?.projectId);
+  const isBootstrapLockedProject = isDotCanvasProjectBootstrapping(activeProject);
+  const isBootstrapThreadActive = isDotCanvasBootstrapThread({
+    thread: activeThread,
+    project: activeProject,
+  });
+  const isActiveBootstrapThread = isBootstrapLockedProject && isBootstrapThreadActive;
+  const interactionMode = draftOrThreadInteractionMode;
 
   const openPullRequestDialog = useCallback(
     (reference?: string) => {
@@ -1026,6 +1045,9 @@ export default function ChatView({ threadId }: ChatViewProps) {
     async (input: { branch: string; worktreePath: string | null; envMode: DraftThreadEnvMode }) => {
       if (!activeProject) {
         throw new Error("No active project is available for this pull request.");
+      }
+      if (isDotCanvasProjectBootstrapping(activeProject)) {
+        throw new Error("Finish DotCanvas bootstrap before creating additional threads.");
       }
       const storedDraftThread = getDraftThreadByProjectId(activeProject.id);
       if (storedDraftThread) {
@@ -1167,7 +1189,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
     () => derivePendingUserInputs(threadActivities),
     [threadActivities],
   );
-  const activePendingUserInput = pendingUserInputs[0] ?? null;
+  const visiblePendingUserInputs = useMemo(() => pendingUserInputs, [pendingUserInputs]);
+  const activePendingUserInput = visiblePendingUserInputs[0] ?? null;
   const activePendingDraftAnswers = useMemo(
     () =>
       activePendingUserInput
@@ -1223,11 +1246,17 @@ export default function ChatView({ threadId }: ChatViewProps) {
     () => deriveActivePlanState(threadActivities, activeLatestTurn?.turnId ?? undefined),
     [activeLatestTurn?.turnId, threadActivities],
   );
-  const showPlanFollowUpPrompt =
-    pendingUserInputs.length === 0 &&
-    interactionMode === "plan" &&
+  const planFollowUpMode: "plan" | "bootstrap" | null =
+    visiblePendingUserInputs.length === 0 &&
     latestTurnSettled &&
-    hasActionableProposedPlan(activeProposedPlan);
+    activeProposedPlan !== null &&
+    hasActionableProposedPlan(activeProposedPlan) &&
+    (interactionMode === "plan" || isActiveBootstrapThread)
+      ? interactionMode === "plan"
+        ? "plan"
+        : "bootstrap"
+      : null;
+  const showPlanFollowUpPrompt = planFollowUpMode !== null;
   const activePendingApproval = pendingApprovals[0] ?? null;
   const {
     beginLocalDispatch,
@@ -1253,7 +1282,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const isComposerApprovalState = activePendingApproval !== null;
   const hasComposerHeader =
     isComposerApprovalState ||
-    pendingUserInputs.length > 0 ||
+    visiblePendingUserInputs.length > 0 ||
     (showPlanFollowUpPrompt && activeProposedPlan !== null);
   const composerFooterHasWideActions = showPlanFollowUpPrompt || activePendingProgress !== null;
   const composerFooterActionLayoutKey = useMemo(() => {
@@ -1264,7 +1293,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
       return "running";
     }
     if (showPlanFollowUpPrompt) {
-      return prompt.trim().length > 0 ? "plan:refine" : "plan:implement";
+      const prefix = planFollowUpMode === "bootstrap" ? "bootstrap" : "plan";
+      return prompt.trim().length > 0 ? `${prefix}:refine` : `${prefix}:apply`;
     }
     return `idle:${composerSendState.hasSendableContent}:${isSendBusy}:${isConnecting}:${isPreparingWorktree}`;
   }, [
@@ -1274,10 +1304,17 @@ export default function ChatView({ threadId }: ChatViewProps) {
     isConnecting,
     isPreparingWorktree,
     isSendBusy,
+    planFollowUpMode,
     phase,
     prompt,
     showPlanFollowUpPrompt,
   ]);
+  const planFollowUpBannerLabel =
+    planFollowUpMode === "bootstrap" ? "Bootstrap plan ready" : "Plan ready";
+  const planFollowUpPlaceholder =
+    planFollowUpMode === "bootstrap"
+      ? "Add feedback to refine the bootstrap plan, or leave this blank to start the project"
+      : "Add feedback to refine the plan, or leave this blank to implement it";
   const lastSyncedPendingInputRef = useRef<{
     requestId: string | null;
     questionId: string | null;
@@ -1532,6 +1569,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const gitStatusQuery = useGitStatus(gitCwd);
   const keybindings = useServerKeybindings();
   const availableEditors = useServerAvailableEditors();
+  const availableProjectApps = useServerAvailableProjectApps();
   const modelOptionsByProvider = useMemo(
     () => ({
       codex: providerStatuses.find((provider) => provider.provider === "codex")?.models ?? [],
@@ -1572,7 +1610,11 @@ export default function ChatView({ threadId }: ChatViewProps) {
     }),
   );
   const capabilitySearchQuery = useQuery<CapabilitySearchResult>({
-    queryKey: ["composer-capabilities", capabilitySearchCwd ?? "__none__", effectiveCapabilityQuery],
+    queryKey: [
+      "composer-capabilities",
+      capabilitySearchCwd ?? "__none__",
+      effectiveCapabilityQuery,
+    ],
     enabled: isCapabilityTrigger && composerCapabilityBundleSelection === null,
     queryFn: async () => {
       const api = readNativeApi();
@@ -1982,7 +2024,13 @@ export default function ChatView({ threadId }: ChatViewProps) {
         composerEditorRef.current?.focusAt(nextCollapsedCursor);
       });
     },
-    [activeThread, composerCursor, composerTerminalContexts, insertComposerDraftTerminalContext],
+    [
+      activeThread,
+      composerCapabilityMentions,
+      composerCursor,
+      composerTerminalContexts,
+      insertComposerDraftTerminalContext,
+    ],
   );
   const setTerminalOpen = useCallback(
     (open: boolean) => {
@@ -2286,7 +2334,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
   );
 
   const handleInteractionModeChange = useCallback(
-    (mode: ProviderInteractionMode) => {
+    (mode: ThreadInteractionMode) => {
+      if (isBootstrapLockedProject) return;
       if (mode === interactionMode) return;
       setComposerDraftInteractionMode(threadId, mode);
       if (isLocalDraftThread) {
@@ -2296,6 +2345,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
     },
     [
       interactionMode,
+      isBootstrapLockedProject,
       isLocalDraftThread,
       scheduleComposerFocus,
       setComposerDraftInteractionMode,
@@ -2331,7 +2381,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       createdAt: string;
       modelSelection?: ModelSelection;
       runtimeMode: RuntimeMode;
-      interactionMode: ProviderInteractionMode;
+      interactionMode: ThreadInteractionMode;
     }) => {
       if (!serverThread) {
         return;
@@ -3031,7 +3081,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const addComposerImages = (files: File[]) => {
     if (!activeThreadId || files.length === 0) return;
 
-    if (pendingUserInputs.length > 0) {
+    if (visiblePendingUserInputs.length > 0) {
       toastManager.add({
         type: "error",
         title: "Attach images after answering plan questions.",
@@ -3203,6 +3253,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       const followUp = resolvePlanFollowUpSubmission({
         draftText: trimmed,
         planMarkdown: activeProposedPlan.planMarkdown,
+        currentMode: planFollowUpMode ?? "plan",
       });
       promptRef.current = "";
       clearComposerDraftContent(activeThread.id);
@@ -3213,6 +3264,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       await onSubmitPlanFollowUp({
         text: followUp.text,
         interactionMode: followUp.interactionMode,
+        action: followUp.action,
       });
       return;
     }
@@ -3642,9 +3694,11 @@ export default function ChatView({ threadId }: ChatViewProps) {
     async ({
       text,
       interactionMode: nextInteractionMode,
+      action,
     }: {
       text: string;
-      interactionMode: "default" | "plan";
+      interactionMode: ThreadInteractionMode;
+      action: "refine" | "apply";
     }) => {
       const api = readNativeApi();
       if (
@@ -3717,7 +3771,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
           titleSeed: activeThread.title,
           runtimeMode,
           interactionMode: nextInteractionMode,
-          ...(nextInteractionMode === "default" && activeProposedPlan
+          ...(action === "apply" && activeProposedPlan
             ? {
                 sourceProposedPlan: {
                   threadId: activeThread.id,
@@ -3727,10 +3781,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
             : {}),
           createdAt: messageCreatedAt,
         });
-        // Optimistically open the plan sidebar when implementing (not refining).
-        // "default" mode here means the agent is executing the plan, which produces
-        // step-tracking activities that the sidebar will display.
-        if (nextInteractionMode === "default") {
+        if (action === "apply" && nextInteractionMode === "default") {
           planSidebarDismissedForTurnRef.current = null;
           setPlanSidebarOpen(true);
         }
@@ -3741,7 +3792,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
         );
         setThreadError(
           threadIdForSend,
-          err instanceof Error ? err.message : "Failed to send plan follow-up.",
+          err instanceof Error ? err.message : "Failed to send proposed-plan follow-up.",
         );
         sendInFlightRef.current = false;
         resetLocalDispatch();
@@ -3775,6 +3826,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
       !activeThread ||
       !activeProject ||
       !activeProposedPlan ||
+      planFollowUpMode !== "plan" ||
+      isDotCanvasProjectBootstrapping(activeProject) ||
       !isServerThread ||
       isSendBusy ||
       isConnecting ||
@@ -3880,6 +3933,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
     runtimeMode,
     selectedPromptEffort,
     selectedModelSelection,
+    planFollowUpMode,
     selectedProvider,
     selectedProviderModels,
     selectedModel,
@@ -4190,7 +4244,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
     [
       applyPromptReplacement,
       addComposerCapabilityMentionToDraft,
-      composerCapabilityBundleSelection,
       handleInteractionModeChange,
       onProviderModelSelect,
       resolveActiveComposerTrigger,
@@ -4365,9 +4418,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
           </div>
         )}
         <div className="flex flex-1 items-center justify-center">
-          <div className="text-center">
-            <p className="text-sm">Select a thread or create a new one to get started.</p>
-          </div>
+          <ProjectCreationSurface />
         </div>
       </div>
     );
@@ -4394,6 +4445,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
           }
           keybindings={keybindings}
           availableEditors={availableEditors}
+          availableProjectApps={availableProjectApps}
           terminalAvailable={activeProject !== undefined}
           terminalOpen={terminalState.terminalOpen}
           terminalToggleShortcutLabel={terminalToggleShortcutLabel}
@@ -4417,6 +4469,28 @@ export default function ChatView({ threadId }: ChatViewProps) {
         error={activeThread.error}
         onDismiss={() => setThreadError(activeThread.id, null)}
       />
+      {isActiveBootstrapThread ? (
+        <div className="border-b border-border bg-muted/35 px-3 py-3 sm:px-5">
+          <div className="flex flex-col gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="border-primary/25 text-primary">
+                  Bootstrapping
+                </Badge>
+                <span className="text-sm font-medium text-foreground">
+                  DotCanvas is shaping the project room before normal work opens up.
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                This first thread is the bootstrap thread. DotCanvas should understand the goal,
+                inspect the workspace, propose the root organization, update `AGENTS.md` and
+                `.context/`, and automatically unlock the project once the approved bootstrap plan
+                succeeds.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {/* Main content area with optional plan sidebar */}
       <div className="flex min-h-0 min-w-0 flex-1">
         {/* Chat column */}
@@ -4511,10 +4585,10 @@ export default function ChatView({ threadId }: ChatViewProps) {
                         pendingCount={pendingApprovals.length}
                       />
                     </div>
-                  ) : pendingUserInputs.length > 0 ? (
+                  ) : visiblePendingUserInputs.length > 0 ? (
                     <div className="rounded-t-[19px] border-b border-border/65 bg-muted/20">
                       <ComposerPendingUserInputPanel
-                        pendingUserInputs={pendingUserInputs}
+                        pendingUserInputs={visiblePendingUserInputs}
                         respondingRequestIds={respondingRequestIds}
                         answers={activePendingDraftAnswers}
                         questionIndex={activePendingQuestionIndex}
@@ -4526,6 +4600,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
                     <div className="rounded-t-[19px] border-b border-border/65 bg-muted/20">
                       <ComposerPlanFollowUpBanner
                         key={activeProposedPlan.id}
+                        label={planFollowUpBannerLabel}
                         planTitle={proposedPlanTitle(activeProposedPlan.planMarkdown) ?? null}
                       />
                     </div>
@@ -4554,7 +4629,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
                     )}
 
                     {!isComposerApprovalState &&
-                      pendingUserInputs.length === 0 &&
+                      visiblePendingUserInputs.length === 0 &&
                       composerImages.length > 0 && (
                         <div className="mb-3 flex flex-wrap gap-2">
                           {composerImages.map((image) => (
@@ -4633,12 +4708,12 @@ export default function ChatView({ threadId }: ChatViewProps) {
                       }
                       cursor={composerCursor}
                       terminalContexts={
-                        !isComposerApprovalState && pendingUserInputs.length === 0
+                        !isComposerApprovalState && visiblePendingUserInputs.length === 0
                           ? composerTerminalContexts
                           : []
                       }
                       capabilityMentions={
-                        !isComposerApprovalState && pendingUserInputs.length === 0
+                        !isComposerApprovalState && visiblePendingUserInputs.length === 0
                           ? composerCapabilityMentions
                           : []
                       }
@@ -4653,7 +4728,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
                           : activePendingProgress
                             ? "Type your own answer, or leave this blank to use the selected option"
                             : showPlanFollowUpPrompt && activeProposedPlan
-                              ? "Add feedback to refine the plan, or leave this blank to implement it"
+                              ? planFollowUpPlaceholder
                               : phase === "disconnected"
                                 ? "Ask for follow-up changes or attach images"
                                 : "Ask anything, @tag files/folders, or use / to show available commands"
@@ -4710,18 +4785,29 @@ export default function ChatView({ threadId }: ChatViewProps) {
                         />
 
                         {isComposerFooterCompact ? (
-                          <CompactComposerControlsMenu
-                            activePlan={Boolean(
-                              activePlan || sidebarProposedPlan || planSidebarOpen,
-                            )}
-                            interactionMode={interactionMode}
-                            planSidebarOpen={planSidebarOpen}
-                            runtimeMode={runtimeMode}
-                            traitsMenuContent={providerTraitsMenuContent}
-                            onToggleInteractionMode={toggleInteractionMode}
-                            onTogglePlanSidebar={togglePlanSidebar}
-                            onToggleRuntimeMode={toggleRuntimeMode}
-                          />
+                          <>
+                            {isBootstrapLockedProject ? (
+                              <Badge
+                                variant="outline"
+                                className="shrink-0 border-primary/25 text-primary"
+                              >
+                                Bootstrap
+                              </Badge>
+                            ) : null}
+                            <CompactComposerControlsMenu
+                              activePlan={Boolean(
+                                activePlan || sidebarProposedPlan || planSidebarOpen,
+                              )}
+                              interactionMode={interactionMode}
+                              planSidebarOpen={planSidebarOpen}
+                              runtimeMode={runtimeMode}
+                              showInteractionModeControls={!isBootstrapLockedProject}
+                              traitsMenuContent={providerTraitsMenuContent}
+                              onToggleInteractionMode={toggleInteractionMode}
+                              onTogglePlanSidebar={togglePlanSidebar}
+                              onToggleRuntimeMode={toggleRuntimeMode}
+                            />
+                          </>
                         ) : (
                           <>
                             {providerTraitsPicker ? (
@@ -4739,23 +4825,32 @@ export default function ChatView({ threadId }: ChatViewProps) {
                               className="mx-0.5 hidden h-4 sm:block"
                             />
 
-                            <Button
-                              variant="ghost"
-                              className="shrink-0 whitespace-nowrap px-2 text-muted-foreground/70 hover:text-foreground/80 sm:px-3"
-                              size="sm"
-                              type="button"
-                              onClick={toggleInteractionMode}
-                              title={
-                                interactionMode === "plan"
-                                  ? "Plan mode — click to return to normal build mode"
-                                  : "Default mode — click to enter plan mode"
-                              }
-                            >
-                              <BotIcon />
-                              <span className="sr-only sm:not-sr-only">
-                                {interactionMode === "plan" ? "Plan" : "Build"}
-                              </span>
-                            </Button>
+                            {isBootstrapLockedProject ? (
+                              <Badge
+                                variant="outline"
+                                className="shrink-0 border-primary/25 text-primary"
+                              >
+                                Bootstrap
+                              </Badge>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                className="shrink-0 whitespace-nowrap px-2 text-muted-foreground/70 hover:text-foreground/80 sm:px-3"
+                                size="sm"
+                                type="button"
+                                onClick={toggleInteractionMode}
+                                title={
+                                  interactionMode === "plan"
+                                    ? "Plan mode — click to return to normal build mode"
+                                    : "Default mode — click to enter plan mode"
+                                }
+                              >
+                                <BotIcon />
+                                <span className="sr-only sm:not-sr-only">
+                                  {interactionMode === "plan" ? "Plan" : "Build"}
+                                </span>
+                              </Button>
+                            )}
 
                             <Separator
                               orientation="vertical"
@@ -4848,8 +4943,9 @@ export default function ChatView({ threadId }: ChatViewProps) {
                           }
                           isRunning={phase === "running"}
                           showPlanFollowUpPrompt={
-                            pendingUserInputs.length === 0 && showPlanFollowUpPrompt
+                            visiblePendingUserInputs.length === 0 && showPlanFollowUpPrompt
                           }
+                          planFollowUpMode={planFollowUpMode}
                           promptHasText={prompt.trim().length > 0}
                           isSendBusy={isSendBusy}
                           isConnecting={isConnecting}

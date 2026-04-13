@@ -50,7 +50,10 @@ export function createWsNativeApi(): NativeApi {
       onEvent: (callback) => rpcClient.terminal.onEvent(callback),
     },
     projects: {
+      bootstrapStart: rpcClient.projects.bootstrapStart,
+      createDirectory: rpcClient.projects.createDirectory,
       searchEntries: rpcClient.projects.searchEntries,
+      statPath: rpcClient.projects.statPath,
       writeFile: rpcClient.projects.writeFile,
     },
     capabilities: {
@@ -59,6 +62,7 @@ export function createWsNativeApi(): NativeApi {
     },
     shell: {
       openInEditor: (cwd, editor) => rpcClient.shell.openInEditor({ cwd, editor }),
+      openInProjectApp: (cwd, app) => rpcClient.shell.openInProjectApp({ cwd, app }),
       openExternal: async (url) => {
         if (window.desktopBridge) {
           const opened = await window.desktopBridge.openExternal(url);

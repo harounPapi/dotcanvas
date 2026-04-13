@@ -173,6 +173,12 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           project_id AS "projectId",
           title,
           workspace_root AS "workspaceRoot",
+          kind,
+          CASE
+            WHEN setup_state = 'starting' THEN 'bootstrapping'
+            ELSE setup_state
+          END AS "bootstrapState",
+          bootstrap_thread_id AS "bootstrapThreadId",
           default_model_selection_json AS "defaultModelSelection",
           scripts_json AS "scripts",
           created_at AS "createdAt",
@@ -194,7 +200,10 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           title,
           model_selection_json AS "modelSelection",
           runtime_mode AS "runtimeMode",
-          interaction_mode AS "interactionMode",
+          CASE
+            WHEN interaction_mode = 'start' THEN 'default'
+            ELSE interaction_mode
+          END AS "interactionMode",
           branch,
           worktree_path AS "worktreePath",
           latest_turn_id AS "latestTurnId",
@@ -365,6 +374,12 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           project_id AS "projectId",
           title,
           workspace_root AS "workspaceRoot",
+          kind,
+          CASE
+            WHEN setup_state = 'starting' THEN 'bootstrapping'
+            ELSE setup_state
+          END AS "bootstrapState",
+          bootstrap_thread_id AS "bootstrapThreadId",
           default_model_selection_json AS "defaultModelSelection",
           scripts_json AS "scripts",
           created_at AS "createdAt",
@@ -656,6 +671,9 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
             id: row.projectId,
             title: row.title,
             workspaceRoot: row.workspaceRoot,
+            kind: row.kind,
+            bootstrapState: row.bootstrapState,
+            bootstrapThreadId: row.bootstrapThreadId,
             defaultModelSelection: row.defaultModelSelection,
             scripts: row.scripts,
             createdAt: row.createdAt,
@@ -738,6 +756,9 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
               id: row.projectId,
               title: row.title,
               workspaceRoot: row.workspaceRoot,
+              kind: row.kind,
+              bootstrapState: row.bootstrapState,
+              bootstrapThreadId: row.bootstrapThreadId,
               defaultModelSelection: row.defaultModelSelection,
               scripts: row.scripts,
               createdAt: row.createdAt,

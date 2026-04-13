@@ -50,6 +50,70 @@ const writeTextFile = Effect.fn("writeTextFile")(function* (
 });
 
 it.layer(TestLayer)("WorkspaceFileSystemLive", (it) => {
+  describe("createDirectory", () => {
+    it.effect("creates a child directory inside the chosen parent", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const parentPath = yield* makeTempDir;
+
+        const result = yield* workspaceFileSystem.createDirectory({
+          parentPath,
+          directoryName: "dotcanvas-project",
+        });
+
+        expect(result.workspaceRoot).toBe(path.join(parentPath, "dotcanvas-project"));
+        const created = yield* fileSystem.stat(result.workspaceRoot).pipe(Effect.orDie);
+        expect(created.type).toBe("Directory");
+      }),
+    );
+
+    it.effect("rejects duplicate project directories", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const parentPath = yield* makeTempDir;
+
+        yield* workspaceFileSystem.createDirectory({
+          parentPath,
+          directoryName: "dotcanvas-project",
+        });
+
+        const error = yield* workspaceFileSystem
+          .createDirectory({
+            parentPath,
+            directoryName: "dotcanvas-project",
+          })
+          .pipe(Effect.flip);
+
+        expect(error.detail).toContain("Directory already exists");
+      }),
+    );
+
+    it.effect("rejects blank names and path separators", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const parentPath = yield* makeTempDir;
+
+        const blankError = yield* workspaceFileSystem
+          .createDirectory({
+            parentPath,
+            directoryName: "   ",
+          })
+          .pipe(Effect.flip);
+        expect(blankError.detail).toContain("must not be blank");
+
+        const separatorError = yield* workspaceFileSystem
+          .createDirectory({
+            parentPath,
+            directoryName: "nested/project",
+          })
+          .pipe(Effect.flip);
+        expect(separatorError.detail).toContain("must not contain path separators");
+      }),
+    );
+  });
+
   describe("writeFile", () => {
     it.effect("writes files relative to the workspace root", () =>
       Effect.gen(function* () {
@@ -130,6 +194,54 @@ it.layer(TestLayer)("WorkspaceFileSystemLive", (it) => {
           .stat(escapedPath)
           .pipe(Effect.catch(() => Effect.succeed(null)));
         expect(escapedStat).toBeNull();
+      }),
+    );
+  });
+
+  describe("statPath", () => {
+    it.effect("reports file and directory kinds within the workspace root", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+
+        yield* writeTextFile(cwd, "DotCanvas/project-brief.md", "# Brief\n");
+
+        const fileStat = yield* workspaceFileSystem.statPath({
+          cwd,
+          relativePath: "DotCanvas/project-brief.md",
+        });
+        const directoryStat = yield* workspaceFileSystem.statPath({
+          cwd,
+          relativePath: "DotCanvas",
+        });
+
+        expect(fileStat).toEqual({
+          relativePath: "DotCanvas/project-brief.md",
+          exists: true,
+          kind: "file",
+        });
+        expect(directoryStat).toEqual({
+          relativePath: "DotCanvas",
+          exists: true,
+          kind: "directory",
+        });
+      }),
+    );
+
+    it.effect("reports missing paths without failing", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+
+        const stat = yield* workspaceFileSystem.statPath({
+          cwd,
+          relativePath: "DotCanvas/memory.md",
+        });
+
+        expect(stat).toEqual({
+          relativePath: "DotCanvas/memory.md",
+          exists: false,
+        });
       }),
     );
   });

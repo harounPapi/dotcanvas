@@ -2,6 +2,8 @@
 import "../index.css";
 
 import {
+  DEFAULT_PROJECT_KIND,
+  DEFAULT_PROJECT_BOOTSTRAP_STATE,
   EventId,
   ORCHESTRATION_WS_METHODS,
   type MessageId,
@@ -145,6 +147,7 @@ function createBaseServerConfig(): ServerConfig {
       },
     ],
     availableEditors: [],
+    availableProjectApps: [],
     observability: {
       logsDirectoryPath: "/repo/project/.t3/logs",
       localTracingEnabled: true,
@@ -261,6 +264,9 @@ function createSnapshotForTargetUser(options: {
         id: PROJECT_ID,
         title: "Project",
         workspaceRoot: "/repo/project",
+        kind: DEFAULT_PROJECT_KIND,
+        bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+        bootstrapThreadId: null,
         defaultModelSelection: {
           provider: "codex",
           model: "gpt-5",
@@ -390,6 +396,29 @@ function createThreadCreatedEvent(threadId: ThreadId, sequence: number): Orchest
       branch: "main",
       worktreePath: null,
       createdAt: NOW_ISO,
+      updatedAt: NOW_ISO,
+    },
+  };
+}
+
+function createProjectBootstrapStateSetEvent(
+  bootstrapState: "bootstrapping" | "ready",
+  sequence: number,
+): OrchestrationEvent {
+  return {
+    sequence,
+    eventId: EventId.makeUnsafe(`event-project-bootstrap-state-${sequence}`),
+    aggregateKind: "project",
+    aggregateId: PROJECT_ID,
+    occurredAt: NOW_ISO,
+    commandId: null,
+    causationEventId: null,
+    correlationId: null,
+    metadata: {},
+    type: "project.bootstrap-state-set",
+    payload: {
+      projectId: PROJECT_ID,
+      bootstrapState,
       updatedAt: NOW_ISO,
     },
   };
@@ -684,6 +713,9 @@ function resolveWsRpc(body: NormalizedWsRpcRequestBody): unknown {
     };
   }
   if (tag === WS_METHODS.shellOpenInEditor) {
+    return null;
+  }
+  if (tag === WS_METHODS.shellOpenInProjectApp) {
     return null;
   }
   if (tag === WS_METHODS.terminalOpen) {
@@ -1624,6 +1656,218 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
+  it("shows Obsidian in the open picker without changing the default primary open target", async () => {
+    setDraftThreadWithoutWorktree();
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createDraftOnlySnapshot(),
+      configureFixture: (nextFixture) => {
+        nextFixture.serverConfig = {
+          ...nextFixture.serverConfig,
+          availableEditors: ["vscode"],
+          availableProjectApps: ["obsidian"],
+        };
+      },
+    });
+
+    try {
+      await waitForServerConfigToApply();
+      const menuButton = await waitForElement(
+        () => document.querySelector('button[aria-label="Copy options"]'),
+        "Unable to find Open picker button.",
+      );
+      (menuButton as HTMLButtonElement).click();
+
+      await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll('[data-slot="menu-item"]')).find((item) =>
+            item.textContent?.includes("Obsidian"),
+          ) ?? null,
+        "Unable to find Obsidian menu item.",
+      );
+
+      const openButton = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll("button")).find(
+            (button) => button.textContent?.trim() === "Open",
+          ) as HTMLButtonElement | null,
+        "Unable to find Open button.",
+      );
+      openButton.click();
+
+      await vi.waitFor(
+        () => {
+          const openRequest = wsRequests.find(
+            (request) => request._tag === WS_METHODS.shellOpenInEditor,
+          );
+          expect(openRequest).toMatchObject({
+            _tag: WS_METHODS.shellOpenInEditor,
+            cwd: "/repo/project",
+            editor: "vscode",
+          });
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("opens Obsidian from the header picker menu", async () => {
+    setDraftThreadWithoutWorktree();
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createDraftOnlySnapshot(),
+      configureFixture: (nextFixture) => {
+        nextFixture.serverConfig = {
+          ...nextFixture.serverConfig,
+          availableEditors: ["vscode"],
+          availableProjectApps: ["obsidian"],
+        };
+      },
+    });
+
+    try {
+      await waitForServerConfigToApply();
+      const menuButton = await waitForElement(
+        () => document.querySelector('button[aria-label="Copy options"]'),
+        "Unable to find Open picker button.",
+      );
+      (menuButton as HTMLButtonElement).click();
+
+      const obsidianItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll('[data-slot="menu-item"]')).find((item) =>
+            item.textContent?.includes("Obsidian"),
+          ) ?? null,
+        "Unable to find Obsidian menu item.",
+      );
+      (obsidianItem as HTMLElement).click();
+
+      await vi.waitFor(
+        () => {
+          const openRequest = wsRequests.find(
+            (request) => request._tag === WS_METHODS.shellOpenInProjectApp,
+          );
+          expect(openRequest).toMatchObject({
+            _tag: WS_METHODS.shellOpenInProjectApp,
+            cwd: "/repo/project",
+            app: "obsidian",
+          });
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      await vi.waitFor(() => {
+        expect(localStorage.getItem("t3code:last-project-open-target")).toBe(
+          JSON.stringify("obsidian"),
+        );
+      });
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("reuses the saved header project target without changing the global editor preference", async () => {
+    localStorage.setItem("t3code:last-editor", JSON.stringify("vscode"));
+    setDraftThreadWithoutWorktree();
+
+    const firstMount = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createDraftOnlySnapshot(),
+      configureFixture: (nextFixture) => {
+        nextFixture.serverConfig = {
+          ...nextFixture.serverConfig,
+          availableEditors: ["vscode"],
+          availableProjectApps: ["obsidian"],
+        };
+      },
+    });
+
+    try {
+      await waitForServerConfigToApply();
+      const menuButton = await waitForElement(
+        () => document.querySelector('button[aria-label="Copy options"]'),
+        "Unable to find Open picker button.",
+      );
+      (menuButton as HTMLButtonElement).click();
+
+      const obsidianItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll('[data-slot="menu-item"]')).find((item) =>
+            item.textContent?.includes("Obsidian"),
+          ) ?? null,
+        "Unable to find Obsidian menu item.",
+      );
+      (obsidianItem as HTMLElement).click();
+
+      await vi.waitFor(
+        () => {
+          const projectAppRequests = wsRequests.filter(
+            (request) => request._tag === WS_METHODS.shellOpenInProjectApp,
+          );
+          expect(projectAppRequests).toHaveLength(1);
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      await vi.waitFor(() => {
+        expect(localStorage.getItem("t3code:last-project-open-target")).toBe(
+          JSON.stringify("obsidian"),
+        );
+      });
+    } finally {
+      await firstMount.cleanup();
+    }
+
+    wsRequests.length = 0;
+
+    const secondMount = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createDraftOnlySnapshot(),
+      configureFixture: (nextFixture) => {
+        nextFixture.serverConfig = {
+          ...nextFixture.serverConfig,
+          availableEditors: ["vscode"],
+          availableProjectApps: ["obsidian"],
+        };
+      },
+    });
+
+    try {
+      await waitForServerConfigToApply();
+      const openButton = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll("button")).find(
+            (button) => button.textContent?.trim() === "Open",
+          ) as HTMLButtonElement | null,
+        "Unable to find Open button.",
+      );
+      openButton.click();
+
+      await vi.waitFor(
+        () => {
+          const projectAppRequests = wsRequests.filter(
+            (request) => request._tag === WS_METHODS.shellOpenInProjectApp,
+          );
+          expect(projectAppRequests).toHaveLength(1);
+          expect(projectAppRequests[0]).toMatchObject({
+            _tag: WS_METHODS.shellOpenInProjectApp,
+            cwd: "/repo/project",
+            app: "obsidian",
+          });
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      expect(localStorage.getItem("t3code:last-editor")).toBe(JSON.stringify("vscode"));
+    } finally {
+      await secondMount.cleanup();
+    }
+  });
+
   it("falls back to the first installed editor when the stored favorite is unavailable", async () => {
     localStorage.setItem("t3code:last-editor", JSON.stringify("vscodium"));
     setDraftThreadWithoutWorktree();
@@ -2469,6 +2713,87 @@ describe("ChatView timeline estimator parity (full app)", () => {
         .element(page.getByText("Send a message to start the conversation."))
         .toBeInTheDocument();
       await expect.element(page.getByTestId("composer-editor")).toBeInTheDocument();
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("removes bootstrap UI and re-enables new threads once bootstrap completes", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-bootstrap-exit" as MessageId,
+        targetText: "bootstrap exit",
+      }),
+      configureFixture: (nextFixture) => {
+        nextFixture.snapshot = {
+          ...nextFixture.snapshot,
+          projects: nextFixture.snapshot.projects.map((project) =>
+            project.id === PROJECT_ID
+              ? {
+                  ...project,
+                  kind: "dotcanvas",
+                  bootstrapState: "bootstrapping",
+                  bootstrapThreadId: THREAD_ID,
+                }
+              : project,
+          ),
+        };
+      },
+    });
+
+    try {
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain(
+            "DotCanvas is shaping the project room before normal work opens up.",
+          );
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const newThreadButton = await waitForElement(
+        () => document.querySelector<HTMLButtonElement>('[data-testid="new-thread-button"]'),
+        "Unable to find new-thread button.",
+      );
+      expect(newThreadButton.disabled).toBe(true);
+
+      fixture.snapshot = {
+        ...fixture.snapshot,
+        snapshotSequence: fixture.snapshot.snapshotSequence + 1,
+        projects: fixture.snapshot.projects.map((project) =>
+          project.id === PROJECT_ID ? { ...project, bootstrapState: "ready" } : project,
+        ),
+      };
+      sendOrchestrationDomainEvent(
+        createProjectBootstrapStateSetEvent("ready", fixture.snapshot.snapshotSequence),
+      );
+
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).not.toContain(
+            "DotCanvas is shaping the project room before normal work opens up.",
+          );
+          const updatedButton = document.querySelector<HTMLButtonElement>(
+            '[data-testid="new-thread-button"]',
+          );
+          expect(updatedButton).toBeTruthy();
+          expect(updatedButton?.disabled).toBe(false);
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const unlockedNewThreadButton = await waitForElement(
+        () => document.querySelector<HTMLButtonElement>('[data-testid="new-thread-button"]'),
+        "Unable to find unlocked new-thread button.",
+      );
+      unlockedNewThreadButton.click();
+
+      await waitForURL(
+        mounted.router,
+        (path) => UUID_ROUTE_RE.test(path),
+        "Route should change to a fresh draft thread once bootstrap is ready.",
+      );
     } finally {
       await mounted.cleanup();
     }

@@ -7,13 +7,23 @@ import { Effect } from "effect";
 
 import { OrchestrationCommandInvariantError } from "./Errors.ts";
 import {
+  isProjectBootstrapping,
+  listActiveThreadsByProjectId,
   requireProject,
   requireProjectAbsent,
   requireThread,
   requireThreadArchived,
   requireThreadAbsent,
   requireThreadNotArchived,
+  resolveBootstrapThreadId,
 } from "./commandInvariants.ts";
+
+function invariantDetail(commandType: OrchestrationCommand["type"], detail: string) {
+  return new OrchestrationCommandInvariantError({
+    commandType,
+    detail,
+  });
+}
 
 const nowIso = () => new Date().toISOString();
 const defaultMetadata: Omit<OrchestrationEvent, "sequence" | "type" | "payload"> = {
@@ -77,6 +87,9 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           projectId: command.projectId,
           title: command.title,
           workspaceRoot: command.workspaceRoot,
+          kind: command.kind,
+          bootstrapState: command.bootstrapState,
+          bootstrapThreadId: command.bootstrapThreadId ?? null,
           defaultModelSelection: command.defaultModelSelection ?? null,
           scripts: [],
           createdAt: command.createdAt,
@@ -104,11 +117,36 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           projectId: command.projectId,
           ...(command.title !== undefined ? { title: command.title } : {}),
           ...(command.workspaceRoot !== undefined ? { workspaceRoot: command.workspaceRoot } : {}),
+          ...(command.bootstrapThreadId !== undefined
+            ? { bootstrapThreadId: command.bootstrapThreadId }
+            : {}),
           ...(command.defaultModelSelection !== undefined
             ? { defaultModelSelection: command.defaultModelSelection }
             : {}),
           ...(command.scripts !== undefined ? { scripts: command.scripts } : {}),
           updatedAt: occurredAt,
+        },
+      };
+    }
+
+    case "project.bootstrap-state.set": {
+      yield* requireProject({
+        readModel,
+        command,
+        projectId: command.projectId,
+      });
+      return {
+        ...withEventBase({
+          aggregateKind: "project",
+          aggregateId: command.projectId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "project.bootstrap-state-set",
+        payload: {
+          projectId: command.projectId,
+          bootstrapState: command.bootstrapState,
+          updatedAt: command.createdAt,
         },
       };
     }
@@ -136,7 +174,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
     }
 
     case "thread.create": {
-      yield* requireProject({
+      const project = yield* requireProject({
         readModel,
         command,
         projectId: command.projectId,
@@ -146,6 +184,27 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         command,
         threadId: command.threadId,
       });
+      if (isProjectBootstrapping(project)) {
+        const bootstrapThreadId = resolveBootstrapThreadId(readModel, project);
+        if (bootstrapThreadId !== null && command.threadId !== bootstrapThreadId) {
+          return yield* invariantDetail(
+            command.type,
+            `Bootstrapping DotCanvas project '${project.id}' can only create its designated bootstrap thread.`,
+          );
+        }
+        if (command.modelSelection.provider !== "codex") {
+          return yield* invariantDetail(
+            command.type,
+            `Bootstrapping DotCanvas project '${project.id}' can only create a Codex-backed bootstrap thread.`,
+          );
+        }
+        if (listActiveThreadsByProjectId(readModel, project.id).length > 0) {
+          return yield* invariantDetail(
+            command.type,
+            `Bootstrapping DotCanvas project '${project.id}' cannot create additional threads until bootstrap is finished.`,
+          );
+        }
+      }
       return {
         ...withEventBase({
           aggregateKind: "thread",
@@ -170,11 +229,23 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
     }
 
     case "thread.delete": {
-      yield* requireThread({
+      const thread = yield* requireThread({
         readModel,
         command,
         threadId: command.threadId,
       });
+      const project = yield* requireProject({
+        readModel,
+        command,
+        projectId: thread.projectId,
+      });
+      const bootstrapThreadId = resolveBootstrapThreadId(readModel, project);
+      if (isProjectBootstrapping(project) && bootstrapThreadId === thread.id) {
+        return yield* invariantDetail(
+          command.type,
+          `Cannot delete the bootstrap thread while DotCanvas project '${project.id}' is still bootstrapping.`,
+        );
+      }
       const occurredAt = nowIso();
       return {
         ...withEventBase({
@@ -192,11 +263,23 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
     }
 
     case "thread.archive": {
-      yield* requireThreadNotArchived({
+      const thread = yield* requireThreadNotArchived({
         readModel,
         command,
         threadId: command.threadId,
       });
+      const project = yield* requireProject({
+        readModel,
+        command,
+        projectId: thread.projectId,
+      });
+      const bootstrapThreadId = resolveBootstrapThreadId(readModel, project);
+      if (isProjectBootstrapping(project) && bootstrapThreadId === thread.id) {
+        return yield* invariantDetail(
+          command.type,
+          `Cannot archive the bootstrap thread while DotCanvas project '${project.id}' is still bootstrapping.`,
+        );
+      }
       const occurredAt = nowIso();
       return {
         ...withEventBase({
@@ -237,11 +320,26 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
     }
 
     case "thread.meta.update": {
-      yield* requireThread({
+      const thread = yield* requireThread({
         readModel,
         command,
         threadId: command.threadId,
       });
+      const project = yield* requireProject({
+        readModel,
+        command,
+        projectId: thread.projectId,
+      });
+      if (
+        isProjectBootstrapping(project) &&
+        command.modelSelection !== undefined &&
+        command.modelSelection.provider !== "codex"
+      ) {
+        return yield* invariantDetail(
+          command.type,
+          `Bootstrapping DotCanvas project '${project.id}' must stay on Codex until bootstrap is finished.`,
+        );
+      }
       const occurredAt = nowIso();
       return {
         ...withEventBase({
@@ -288,11 +386,23 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
     }
 
     case "thread.interaction-mode.set": {
-      yield* requireThread({
+      const thread = yield* requireThread({
         readModel,
         command,
         threadId: command.threadId,
       });
+      const project = yield* requireProject({
+        readModel,
+        command,
+        projectId: thread.projectId,
+      });
+      const bootstrapThreadId = resolveBootstrapThreadId(readModel, project);
+      if (isProjectBootstrapping(project) && bootstrapThreadId === thread.id) {
+        return yield* invariantDetail(
+          command.type,
+          `Cannot change thread mode while DotCanvas project '${project.id}' is still bootstrapping.`,
+        );
+      }
       const occurredAt = nowIso();
       return {
         ...withEventBase({
@@ -316,6 +426,39 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         command,
         threadId: command.threadId,
       });
+      const targetProject = yield* requireProject({
+        readModel,
+        command,
+        projectId: targetThread.projectId,
+      });
+      if (isProjectBootstrapping(targetProject)) {
+        const bootstrapThreadId = resolveBootstrapThreadId(readModel, targetProject);
+        const effectiveModelSelection = command.modelSelection ?? targetThread.modelSelection;
+        if (command.bootstrap?.createThread) {
+          return yield* invariantDetail(
+            command.type,
+            `Bootstrapping DotCanvas project '${targetProject.id}' cannot create additional threads until bootstrap is finished.`,
+          );
+        }
+        if (effectiveModelSelection.provider !== "codex") {
+          return yield* invariantDetail(
+            command.type,
+            `Bootstrapping DotCanvas project '${targetProject.id}' must stay on Codex until bootstrap is finished.`,
+          );
+        }
+        if (bootstrapThreadId === null || targetThread.id !== bootstrapThreadId) {
+          return yield* invariantDetail(
+            command.type,
+            `Bootstrapping DotCanvas project '${targetProject.id}' only accepts turns on its bootstrap thread.`,
+          );
+        }
+        if (command.interactionMode !== "default") {
+          return yield* invariantDetail(
+            command.type,
+            `DotCanvas bootstrap turns must use the default thread interaction mode; bootstrap planning is injected by the provider layer.`,
+          );
+        }
+      }
       const sourceProposedPlan = command.sourceProposedPlan;
       const sourceThread = sourceProposedPlan
         ? yield* requireThread({

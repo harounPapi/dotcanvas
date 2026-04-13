@@ -1,3 +1,5 @@
+import type { ThreadInteractionMode } from "@t3tools/contracts";
+
 export function proposedPlanTitle(planMarkdown: string): string | null {
   const heading = planMarkdown.match(/^\s{0,3}#{1,6}\s+(.+)$/m)?.[1]?.trim();
   return heading && heading.length > 0 ? heading : null;
@@ -74,21 +76,40 @@ export function buildPlanImplementationPrompt(planMarkdown: string): string {
   return `PLEASE IMPLEMENT THIS PLAN:\n${planMarkdown.trim()}`;
 }
 
-export function resolvePlanFollowUpSubmission(input: { draftText: string; planMarkdown: string }): {
+export function buildBootstrapPlanApplyPrompt(planMarkdown: string): string {
+  return `PLEASE IMPLEMENT THIS BOOTSTRAP PLAN:\n${planMarkdown.trim()}`;
+}
+
+export function resolvePlanFollowUpSubmission(input: {
+  draftText: string;
+  planMarkdown: string;
+  currentMode: "plan" | "bootstrap";
+}): {
   text: string;
-  interactionMode: "default" | "plan";
+  interactionMode: ThreadInteractionMode;
+  action: "refine" | "apply";
 } {
   const trimmedDraftText = input.draftText.trim();
   if (trimmedDraftText.length > 0) {
     return {
       text: trimmedDraftText,
-      interactionMode: "plan",
+      interactionMode: input.currentMode === "plan" ? "plan" : "default",
+      action: "refine",
+    };
+  }
+
+  if (input.currentMode === "bootstrap") {
+    return {
+      text: buildBootstrapPlanApplyPrompt(input.planMarkdown),
+      interactionMode: "default",
+      action: "apply",
     };
   }
 
   return {
     text: buildPlanImplementationPrompt(input.planMarkdown),
     interactionMode: "default",
+    action: "apply",
   };
 }
 

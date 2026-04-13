@@ -1,4 +1,9 @@
-import { ProjectId, ThreadId } from "@t3tools/contracts";
+import {
+  DEFAULT_PROJECT_KIND,
+  DEFAULT_PROJECT_BOOTSTRAP_STATE,
+  ProjectId,
+  ThreadId,
+} from "@t3tools/contracts";
 import { assert, it } from "@effect/vitest";
 import { Effect, Layer, Option } from "effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
@@ -27,6 +32,9 @@ projectionRepositoriesLayer("Projection repositories", (it) => {
         projectId: ProjectId.makeUnsafe("project-null-options"),
         title: "Null options project",
         workspaceRoot: "/tmp/project-null-options",
+        kind: DEFAULT_PROJECT_KIND,
+        bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+        bootstrapThreadId: null,
         defaultModelSelection: {
           provider: "codex",
           model: "gpt-5.4",

@@ -1,15 +1,21 @@
 import {
   CommandId,
-  DEFAULT_PROVIDER_INTERACTION_MODE,
+  DEFAULT_THREAD_INTERACTION_MODE,
   type ModelSelection,
   ProjectId,
   ThreadId,
 } from "@t3tools/contracts";
 import {
+  DOTCANVAS_BOOTSTRAP_THREAD_TITLE,
+  DOTCANVAS_CONTEXT_DIRECTORY,
+  parseDotCanvasBootstrapMarkerContents,
+} from "@t3tools/shared/dotcanvas";
+import {
   Data,
   Deferred,
   Effect,
   Exit,
+  FileSystem,
   Layer,
   Option,
   Path,
@@ -148,6 +154,72 @@ export const launchStartupHeartbeat = recordStartupHeartbeat.pipe(
   Effect.asVoid,
 );
 
+const readDotCanvasBootstrappedMarker = Effect.fn("readDotCanvasBootstrappedMarker")(function* (
+  workspaceRoot: string,
+) {
+  const fileSystem = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const contextRoot = path.join(workspaceRoot, DOTCANVAS_CONTEXT_DIRECTORY);
+  const entries = yield* fileSystem
+    .readDirectory(contextRoot, { recursive: false })
+    .pipe(Effect.catch(() => Effect.succeed([] as Array<string>)));
+
+  for (const entry of entries) {
+    const normalizedEntry = entry.replace(/^[/\\]+/, "").replace(/\\/g, "/");
+    if (normalizedEntry.length === 0 || normalizedEntry.includes("/")) {
+      continue;
+    }
+
+    const absolutePath = path.join(contextRoot, normalizedEntry);
+    const stat = yield* fileSystem
+      .stat(absolutePath)
+      .pipe(Effect.catch(() => Effect.succeed(null)));
+    if (!stat || stat.type !== "File") {
+      continue;
+    }
+
+    const contents = yield* fileSystem
+      .readFileString(absolutePath)
+      .pipe(Effect.catch(() => Effect.succeed("")));
+    if (parseDotCanvasBootstrapMarkerContents(contents)) {
+      return true;
+    }
+  }
+
+  return false;
+});
+
+const reconcileDotCanvasBootstrapMarkers = Effect.gen(function* () {
+  const orchestrationEngine = yield* OrchestrationEngineService;
+  const readModel = yield* orchestrationEngine.getReadModel();
+
+  yield* Effect.forEach(
+    readModel.projects,
+    Effect.fn(function* (project) {
+      if (project.kind !== "dotcanvas" || project.bootstrapState !== "bootstrapping") {
+        return;
+      }
+
+      const hasBootstrappedMarker = yield* readDotCanvasBootstrappedMarker(project.workspaceRoot);
+      if (!hasBootstrappedMarker) {
+        return;
+      }
+
+      const createdAt = new Date().toISOString();
+      yield* orchestrationEngine.dispatch({
+        type: "project.bootstrap-state.set",
+        commandId: CommandId.makeUnsafe(
+          `startup:dotcanvas-bootstrap-marker:${project.id}:${crypto.randomUUID()}`,
+        ),
+        projectId: project.id,
+        bootstrapState: "ready",
+        createdAt,
+      });
+    }),
+    { concurrency: 1 },
+  ).pipe(Effect.asVoid);
+});
+
 const autoBootstrapWelcome = Effect.gen(function* () {
   const serverConfig = yield* ServerConfig;
   const projectionReadModelQuery = yield* ProjectionSnapshotQuery;
@@ -162,6 +234,13 @@ const autoBootstrapWelcome = Effect.gen(function* () {
       const existingProject = yield* projectionReadModelQuery.getActiveProjectByWorkspaceRoot(
         serverConfig.cwd,
       );
+      const existingDotCanvasProject = Option.isSome(existingProject)
+        ? existingProject.value
+        : null;
+      const existingProjectValue = Option.isSome(existingProject) ? existingProject.value : null;
+      const isBootstrappingDotCanvasProject =
+        existingDotCanvasProject?.kind === "dotcanvas" &&
+        existingDotCanvasProject.bootstrapState === "bootstrapping";
       let nextProjectId: ProjectId;
       let nextProjectDefaultModelSelection: ModelSelection;
 
@@ -179,15 +258,31 @@ const autoBootstrapWelcome = Effect.gen(function* () {
           projectId: nextProjectId,
           title: bootstrapProjectTitle,
           workspaceRoot: serverConfig.cwd,
+          kind: "plain",
+          bootstrapState: "ready",
+          bootstrapThreadId: null,
           defaultModelSelection: nextProjectDefaultModelSelection,
           createdAt,
         });
       } else {
-        nextProjectId = existingProject.value.id;
-        nextProjectDefaultModelSelection = existingProject.value.defaultModelSelection ?? {
-          provider: "codex",
-          model: "gpt-5-codex",
-        };
+        const currentProject = existingProjectValue;
+        if (currentProject === null) {
+          return yield* Effect.fail(
+            new Error("Expected an existing project while auto-bootstrapping the workspace."),
+          );
+        }
+        nextProjectId = currentProject.id;
+        nextProjectDefaultModelSelection =
+          isBootstrappingDotCanvasProject &&
+          currentProject.defaultModelSelection?.provider !== "codex"
+            ? {
+                provider: "codex",
+                model: "gpt-5-codex",
+              }
+            : (currentProject.defaultModelSelection ?? {
+                provider: "codex",
+                model: "gpt-5-codex",
+              });
       }
 
       const existingThreadId =
@@ -200,19 +295,23 @@ const autoBootstrapWelcome = Effect.gen(function* () {
           commandId: CommandId.makeUnsafe(crypto.randomUUID()),
           threadId: createdThreadId,
           projectId: nextProjectId,
-          title: "New thread",
+          title: isBootstrappingDotCanvasProject ? DOTCANVAS_BOOTSTRAP_THREAD_TITLE : "New thread",
           modelSelection: nextProjectDefaultModelSelection,
-          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          interactionMode: DEFAULT_THREAD_INTERACTION_MODE,
           runtimeMode: "full-access",
           branch: null,
           worktreePath: null,
           createdAt,
         });
-        bootstrapProjectId = nextProjectId;
-        bootstrapThreadId = createdThreadId;
+        if (existingDotCanvasProject?.kind === "dotcanvas" && isBootstrappingDotCanvasProject) {
+          bootstrapProjectId = nextProjectId;
+          bootstrapThreadId = existingDotCanvasProject.bootstrapThreadId ?? createdThreadId;
+        }
       } else {
-        bootstrapProjectId = nextProjectId;
-        bootstrapThreadId = existingThreadId.value;
+        if (existingDotCanvasProject?.kind === "dotcanvas" && isBootstrappingDotCanvasProject) {
+          bootstrapProjectId = nextProjectId;
+          bootstrapThreadId = existingDotCanvasProject.bootstrapThreadId ?? existingThreadId.value;
+        }
       }
     });
   }
@@ -305,6 +404,9 @@ const makeServerRuntimeStartup = Effect.gen(function* () {
       "reactors.start",
       orchestrationReactor.start().pipe(Scope.provide(reactorScope)),
     );
+
+    yield* Effect.logDebug("startup phase: reconciling dotcanvas bootstrap markers");
+    yield* runStartupPhase("dotcanvas.bootstrap.reconcile", reconcileDotCanvasBootstrapMarkers);
 
     yield* Effect.logDebug("startup phase: preparing welcome payload");
     const welcome = yield* runStartupPhase("welcome.prepare", autoBootstrapWelcome);

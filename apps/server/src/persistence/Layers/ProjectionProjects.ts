@@ -31,6 +31,9 @@ const makeProjectionProjectRepository = Effect.gen(function* () {
           project_id,
           title,
           workspace_root,
+          kind,
+          setup_state,
+          bootstrap_thread_id,
           default_model_selection_json,
           scripts_json,
           created_at,
@@ -41,6 +44,9 @@ const makeProjectionProjectRepository = Effect.gen(function* () {
           ${row.projectId},
           ${row.title},
           ${row.workspaceRoot},
+          ${row.kind},
+          ${row.bootstrapState},
+          ${row.bootstrapThreadId},
           ${row.defaultModelSelection !== null ? JSON.stringify(row.defaultModelSelection) : null},
           ${JSON.stringify(row.scripts)},
           ${row.createdAt},
@@ -51,6 +57,9 @@ const makeProjectionProjectRepository = Effect.gen(function* () {
         DO UPDATE SET
           title = excluded.title,
           workspace_root = excluded.workspace_root,
+          kind = excluded.kind,
+          setup_state = excluded.setup_state,
+          bootstrap_thread_id = excluded.bootstrap_thread_id,
           default_model_selection_json = excluded.default_model_selection_json,
           scripts_json = excluded.scripts_json,
           created_at = excluded.created_at,
@@ -68,6 +77,12 @@ const makeProjectionProjectRepository = Effect.gen(function* () {
           project_id AS "projectId",
           title,
           workspace_root AS "workspaceRoot",
+          kind,
+          CASE
+            WHEN setup_state = 'starting' THEN 'bootstrapping'
+            ELSE setup_state
+          END AS "bootstrapState",
+          bootstrap_thread_id AS "bootstrapThreadId",
           default_model_selection_json AS "defaultModelSelection",
           scripts_json AS "scripts",
           created_at AS "createdAt",
@@ -87,6 +102,12 @@ const makeProjectionProjectRepository = Effect.gen(function* () {
           project_id AS "projectId",
           title,
           workspace_root AS "workspaceRoot",
+          kind,
+          CASE
+            WHEN setup_state = 'starting' THEN 'bootstrapping'
+            ELSE setup_state
+          END AS "bootstrapState",
+          bootstrap_thread_id AS "bootstrapThreadId",
           default_model_selection_json AS "defaultModelSelection",
           scripts_json AS "scripts",
           created_at AS "createdAt",

@@ -13,6 +13,7 @@ import {
   ProjectCreatedPayload,
   ProjectDeletedPayload,
   ProjectMetaUpdatedPayload,
+  ProjectBootstrapStateSetPayload,
   ThreadActivityAppendedPayload,
   ThreadArchivedPayload,
   ThreadCreatedPayload,
@@ -183,6 +184,9 @@ export function projectEvent(
             id: payload.projectId,
             title: payload.title,
             workspaceRoot: payload.workspaceRoot,
+            kind: payload.kind,
+            bootstrapState: payload.bootstrapState,
+            bootstrapThreadId: payload.bootstrapThreadId,
             defaultModelSelection: payload.defaultModelSelection,
             scripts: payload.scripts,
             createdAt: payload.createdAt,
@@ -213,10 +217,34 @@ export function projectEvent(
                   ...(payload.workspaceRoot !== undefined
                     ? { workspaceRoot: payload.workspaceRoot }
                     : {}),
+                  ...(payload.bootstrapThreadId !== undefined
+                    ? { bootstrapThreadId: payload.bootstrapThreadId }
+                    : {}),
                   ...(payload.defaultModelSelection !== undefined
                     ? { defaultModelSelection: payload.defaultModelSelection }
                     : {}),
                   ...(payload.scripts !== undefined ? { scripts: payload.scripts } : {}),
+                  updatedAt: payload.updatedAt,
+                }
+              : project,
+          ),
+        })),
+      );
+
+    case "project.bootstrap-state-set":
+      return decodeForEvent(
+        ProjectBootstrapStateSetPayload,
+        event.payload,
+        event.type,
+        "payload",
+      ).pipe(
+        Effect.map((payload) => ({
+          ...nextBase,
+          projects: nextBase.projects.map((project) =>
+            project.id === payload.projectId
+              ? {
+                  ...project,
+                  bootstrapState: payload.bootstrapState,
                   updatedAt: payload.updatedAt,
                 }
               : project,

@@ -10,7 +10,13 @@ import { spawn } from "node:child_process";
 import { accessSync, constants, statSync } from "node:fs";
 import { extname, join } from "node:path";
 
-import { EDITORS, OpenError, type EditorId } from "@t3tools/contracts";
+import {
+  EDITORS,
+  OpenError,
+  PROJECT_APPS,
+  type EditorId,
+  type ProjectAppId,
+} from "@t3tools/contracts";
 import { ServiceMap, Effect, Layer } from "effect";
 
 // ==============================
@@ -24,7 +30,12 @@ export interface OpenInEditorInput {
   readonly editor: EditorId;
 }
 
-interface EditorLaunch {
+export interface OpenInProjectAppInput {
+  readonly cwd: string;
+  readonly app: ProjectAppId;
+}
+
+interface CommandLaunch {
   readonly command: string;
   readonly args: ReadonlyArray<string>;
 }
@@ -207,6 +218,21 @@ export function resolveAvailableEditors(
   return available;
 }
 
+export function resolveAvailableProjectApps(
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
+): ReadonlyArray<ProjectAppId> {
+  const available: ProjectAppId[] = [];
+
+  for (const app of PROJECT_APPS) {
+    if (isCommandAvailable(app.command, { platform, env })) {
+      available.push(app.id);
+    }
+  }
+
+  return available;
+}
+
 /**
  * OpenShape - Service API for browser and editor launch actions.
  */
@@ -222,6 +248,13 @@ export interface OpenShape {
    * Launches the editor as a detached process so server startup is not blocked.
    */
   readonly openInEditor: (input: OpenInEditorInput) => Effect.Effect<void, OpenError>;
+
+  /**
+   * Open a workspace directory in a selected project app integration.
+   *
+   * Launches the app as a detached process so server startup is not blocked.
+   */
+  readonly openInProjectApp: (input: OpenInProjectAppInput) => Effect.Effect<void, OpenError>;
 }
 
 /**
@@ -236,7 +269,7 @@ export class Open extends ServiceMap.Service<Open, OpenShape>()("t3/open") {}
 export const resolveEditorLaunch = Effect.fn("resolveEditorLaunch")(function* (
   input: OpenInEditorInput,
   platform: NodeJS.Platform = process.platform,
-): Effect.fn.Return<EditorLaunch, OpenError> {
+): Effect.fn.Return<CommandLaunch, OpenError> {
   yield* Effect.annotateCurrentSpan({
     "open.editor": input.editor,
     "open.cwd": input.cwd,
@@ -261,7 +294,25 @@ export const resolveEditorLaunch = Effect.fn("resolveEditorLaunch")(function* (
   return { command: fileManagerCommandForPlatform(platform), args: [input.cwd] };
 });
 
-export const launchDetached = (launch: EditorLaunch) =>
+export const resolveProjectAppLaunch = Effect.fn("resolveProjectAppLaunch")(function* (
+  input: OpenInProjectAppInput,
+): Effect.fn.Return<CommandLaunch, OpenError> {
+  yield* Effect.annotateCurrentSpan({
+    "open.project_app": input.app,
+    "open.cwd": input.cwd,
+  });
+  const appDef = PROJECT_APPS.find((app) => app.id === input.app);
+  if (!appDef) {
+    return yield* new OpenError({ message: `Unknown project app: ${input.app}` });
+  }
+
+  return {
+    command: appDef.command,
+    args: [input.cwd],
+  };
+});
+
+export const launchDetached = (launch: CommandLaunch) =>
   Effect.gen(function* () {
     if (!isCommandAvailable(launch.command)) {
       return yield* new OpenError({ message: `Editor command not found: ${launch.command}` });
@@ -306,6 +357,7 @@ const make = Effect.gen(function* () {
         catch: (cause) => new OpenError({ message: "Browser auto-open failed", cause }),
       }),
     openInEditor: (input) => Effect.flatMap(resolveEditorLaunch(input), launchDetached),
+    openInProjectApp: (input) => Effect.flatMap(resolveProjectAppLaunch(input), launchDetached),
   } satisfies OpenShape;
 });
 

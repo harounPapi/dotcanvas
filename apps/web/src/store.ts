@@ -184,6 +184,9 @@ function mapProject(project: OrchestrationReadModel["projects"][number]): Projec
     id: project.id,
     name: project.title,
     cwd: project.workspaceRoot,
+    kind: project.kind,
+    bootstrapState: project.bootstrapState,
+    bootstrapThreadId: project.bootstrapThreadId,
     defaultModelSelection: project.defaultModelSelection
       ? normalizeModelSelection(project.defaultModelSelection)
       : null,
@@ -602,6 +605,9 @@ export function applyOrchestrationEvent(state: AppState, event: OrchestrationEve
         id: event.payload.projectId,
         title: event.payload.title,
         workspaceRoot: event.payload.workspaceRoot,
+        kind: event.payload.kind,
+        bootstrapState: event.payload.bootstrapState,
+        bootstrapThreadId: event.payload.bootstrapThreadId,
         defaultModelSelection: event.payload.defaultModelSelection,
         scripts: event.payload.scripts,
         createdAt: event.payload.createdAt,
@@ -622,6 +628,9 @@ export function applyOrchestrationEvent(state: AppState, event: OrchestrationEve
         ...project,
         ...(event.payload.title !== undefined ? { name: event.payload.title } : {}),
         ...(event.payload.workspaceRoot !== undefined ? { cwd: event.payload.workspaceRoot } : {}),
+        ...(event.payload.bootstrapThreadId !== undefined
+          ? { bootstrapThreadId: event.payload.bootstrapThreadId }
+          : {}),
         ...(event.payload.defaultModelSelection !== undefined
           ? {
               defaultModelSelection: event.payload.defaultModelSelection
@@ -632,6 +641,15 @@ export function applyOrchestrationEvent(state: AppState, event: OrchestrationEve
         ...(event.payload.scripts !== undefined
           ? { scripts: mapProjectScripts(event.payload.scripts) }
           : {}),
+        updatedAt: event.payload.updatedAt,
+      }));
+      return projects === state.projects ? state : { ...state, projects };
+    }
+
+    case "project.bootstrap-state-set": {
+      const projects = updateProject(state.projects, event.payload.projectId, (project) => ({
+        ...project,
+        bootstrapState: event.payload.bootstrapState,
         updatedAt: event.payload.updatedAt,
       }));
       return projects === state.projects ? state : { ...state, projects };

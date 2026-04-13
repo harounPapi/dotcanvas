@@ -1,5 +1,6 @@
 import {
   type EditorId,
+  type ProjectAppId,
   type ProjectScript,
   type ResolvedKeybindingsConfig,
   type ThreadId,
@@ -24,6 +25,7 @@ interface ChatHeaderProps {
   preferredScriptId: string | null;
   keybindings: ResolvedKeybindingsConfig;
   availableEditors: ReadonlyArray<EditorId>;
+  availableProjectApps: ReadonlyArray<ProjectAppId>;
   terminalAvailable: boolean;
   terminalOpen: boolean;
   terminalToggleShortcutLabel: string | null;
@@ -48,6 +50,7 @@ export const ChatHeader = memo(function ChatHeader({
   preferredScriptId,
   keybindings,
   availableEditors,
+  availableProjectApps,
   terminalAvailable,
   terminalOpen,
   terminalToggleShortcutLabel,
@@ -98,6 +101,7 @@ export const ChatHeader = memo(function ChatHeader({
           <OpenInPicker
             keybindings={keybindings}
             availableEditors={availableEditors}
+            availableProjectApps={availableProjectApps}
             openInCwd={openInCwd}
           />
         )}

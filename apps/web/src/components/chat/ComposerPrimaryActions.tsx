@@ -17,6 +17,7 @@ interface ComposerPrimaryActionsProps {
   pendingAction: PendingActionState | null;
   isRunning: boolean;
   showPlanFollowUpPrompt: boolean;
+  planFollowUpMode: "plan" | "bootstrap" | null;
   promptHasText: boolean;
   isSendBusy: boolean;
   isConnecting: boolean;
@@ -46,6 +47,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   pendingAction,
   isRunning,
   showPlanFollowUpPrompt,
+  planFollowUpMode,
   promptHasText,
   isSendBusy,
   isConnecting,
@@ -117,6 +119,8 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   }
 
   if (showPlanFollowUpPrompt) {
+    const refineLabel = planFollowUpMode === "bootstrap" ? "Refine bootstrap" : "Refine";
+    const applyLabel = planFollowUpMode === "bootstrap" ? "Start project" : "Implement";
     if (promptHasText) {
       return (
         <Button
@@ -125,8 +129,23 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
           className={cn("rounded-full", compact ? "h-9 px-3 sm:h-8" : "h-9 px-4 sm:h-8")}
           disabled={isSendBusy || isConnecting}
         >
-          {isConnecting || isSendBusy ? "Sending..." : "Refine"}
+          {isConnecting || isSendBusy ? "Sending..." : refineLabel}
         </Button>
+      );
+    }
+
+    if (planFollowUpMode === "bootstrap") {
+      return (
+        <div data-chat-composer-implement-actions="true" className="flex items-center justify-end">
+          <Button
+            type="submit"
+            size="sm"
+            className={cn("h-9 rounded-full sm:h-8", compact ? "px-3" : "px-4")}
+            disabled={isSendBusy || isConnecting}
+          >
+            {isConnecting || isSendBusy ? "Sending..." : applyLabel}
+          </Button>
+        </div>
       );
     }
 
@@ -138,7 +157,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
           className={cn("h-9 rounded-l-full rounded-r-none sm:h-8", compact ? "px-3" : "px-4")}
           disabled={isSendBusy || isConnecting}
         >
-          {isConnecting || isSendBusy ? "Sending..." : "Implement"}
+          {isConnecting || isSendBusy ? "Sending..." : applyLabel}
         </Button>
         <Menu>
           <MenuTrigger

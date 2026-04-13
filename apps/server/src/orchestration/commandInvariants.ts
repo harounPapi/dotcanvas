@@ -38,6 +38,29 @@ export function listThreadsByProjectId(
   return readModel.threads.filter((thread) => thread.projectId === projectId);
 }
 
+export function listActiveThreadsByProjectId(
+  readModel: OrchestrationReadModel,
+  projectId: ProjectId,
+): ReadonlyArray<OrchestrationThread> {
+  return listThreadsByProjectId(readModel, projectId).filter((thread) => thread.deletedAt === null);
+}
+
+export function isProjectBootstrapping(project: OrchestrationProject): boolean {
+  return project.kind === "dotcanvas" && project.bootstrapState === "bootstrapping";
+}
+
+export function resolveBootstrapThreadId(
+  readModel: OrchestrationReadModel,
+  project: OrchestrationProject,
+): ThreadId | null {
+  if (project.bootstrapThreadId !== null) {
+    return project.bootstrapThreadId;
+  }
+
+  const activeThreads = listActiveThreadsByProjectId(readModel, project.id);
+  return activeThreads.length === 1 ? activeThreads[0]!.id : null;
+}
+
 export function requireProject(input: {
   readonly readModel: OrchestrationReadModel;
   readonly command: OrchestrationCommand;

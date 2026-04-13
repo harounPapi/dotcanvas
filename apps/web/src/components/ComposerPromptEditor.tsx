@@ -1232,13 +1232,13 @@ function ComposerPromptEditorInner({
       },
       focusAt,
       focusAtEnd: () => {
-      focusAt(
-        collapseExpandedComposerCursor(
-          snapshotRef.current.value,
-          snapshotRef.current.value.length,
-          capabilityMentionsRef.current,
-        ),
-      );
+        focusAt(
+          collapseExpandedComposerCursor(
+            snapshotRef.current.value,
+            snapshotRef.current.value.length,
+            capabilityMentionsRef.current,
+          ),
+        );
       },
       readSnapshot,
     }),

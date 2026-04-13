@@ -1,6 +1,8 @@
 import {
   CommandId,
-  DEFAULT_PROVIDER_INTERACTION_MODE,
+  DEFAULT_THREAD_INTERACTION_MODE,
+  DEFAULT_PROJECT_KIND,
+  DEFAULT_PROJECT_BOOTSTRAP_STATE,
   EventId,
   MessageId,
   ProjectId,
@@ -16,6 +18,77 @@ const asEventId = (value: string): EventId => EventId.makeUnsafe(value);
 const asProjectId = (value: string): ProjectId => ProjectId.makeUnsafe(value);
 const asMessageId = (value: string): MessageId => MessageId.makeUnsafe(value);
 
+async function createReadModelWithProject(input: {
+  now: string;
+  kind?: "plain" | "dotcanvas";
+  bootstrapState?: "ready" | "bootstrapping";
+}) {
+  return Effect.runPromise(
+    projectEvent(createEmptyReadModel(input.now), {
+      sequence: 1,
+      eventId: asEventId("evt-project-create"),
+      aggregateKind: "project",
+      aggregateId: asProjectId("project-1"),
+      type: "project.created",
+      occurredAt: input.now,
+      commandId: CommandId.makeUnsafe("cmd-project-create"),
+      causationEventId: null,
+      correlationId: CommandId.makeUnsafe("cmd-project-create"),
+      metadata: {},
+      payload: {
+        projectId: asProjectId("project-1"),
+        title: "Project",
+        workspaceRoot: "/tmp/project",
+        kind: input.kind ?? DEFAULT_PROJECT_KIND,
+        bootstrapState: input.bootstrapState ?? DEFAULT_PROJECT_BOOTSTRAP_STATE,
+        bootstrapThreadId: null,
+        defaultModelSelection: null,
+        scripts: [],
+        createdAt: input.now,
+        updatedAt: input.now,
+      },
+    }),
+  );
+}
+
+async function createReadModelWithProjectAndThread(input: {
+  now: string;
+  kind?: "plain" | "dotcanvas";
+  bootstrapState?: "ready" | "bootstrapping";
+  threadInteractionMode?: "default" | "plan";
+}) {
+  const withProject = await createReadModelWithProject(input);
+  return Effect.runPromise(
+    projectEvent(withProject, {
+      sequence: 2,
+      eventId: asEventId("evt-thread-create"),
+      aggregateKind: "thread",
+      aggregateId: ThreadId.makeUnsafe("thread-1"),
+      type: "thread.created",
+      occurredAt: input.now,
+      commandId: CommandId.makeUnsafe("cmd-thread-create"),
+      causationEventId: null,
+      correlationId: CommandId.makeUnsafe("cmd-thread-create"),
+      metadata: {},
+      payload: {
+        threadId: ThreadId.makeUnsafe("thread-1"),
+        projectId: asProjectId("project-1"),
+        title: "Thread",
+        modelSelection: {
+          provider: "codex",
+          model: "gpt-5-codex",
+        },
+        interactionMode: input.threadInteractionMode ?? DEFAULT_THREAD_INTERACTION_MODE,
+        runtimeMode: "approval-required",
+        branch: null,
+        worktreePath: null,
+        createdAt: input.now,
+        updatedAt: input.now,
+      },
+    }),
+  );
+}
+
 describe("decider project scripts", () => {
   it("emits empty scripts on project.create", async () => {
     const now = new Date().toISOString();
@@ -29,6 +102,8 @@ describe("decider project scripts", () => {
           projectId: asProjectId("project-scripts"),
           title: "Scripts",
           workspaceRoot: "/tmp/scripts",
+          kind: DEFAULT_PROJECT_KIND,
+          bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
           createdAt: now,
         },
         readModel,
@@ -59,6 +134,9 @@ describe("decider project scripts", () => {
           projectId: asProjectId("project-scripts"),
           title: "Scripts",
           workspaceRoot: "/tmp/scripts",
+          kind: DEFAULT_PROJECT_KIND,
+          bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+          bootstrapThreadId: null,
           defaultModelSelection: null,
           scripts: [],
           createdAt: now,
@@ -113,6 +191,9 @@ describe("decider project scripts", () => {
           projectId: asProjectId("project-1"),
           title: "Project",
           workspaceRoot: "/tmp/project",
+          kind: DEFAULT_PROJECT_KIND,
+          bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+          bootstrapThreadId: null,
           defaultModelSelection: null,
           scripts: [],
           createdAt: now,
@@ -140,7 +221,7 @@ describe("decider project scripts", () => {
             provider: "codex",
             model: "gpt-5-codex",
           },
-          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          interactionMode: DEFAULT_THREAD_INTERACTION_MODE,
           runtimeMode: "approval-required",
           branch: null,
           worktreePath: null,
@@ -170,7 +251,7 @@ describe("decider project scripts", () => {
               fastMode: true,
             },
           },
-          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          interactionMode: DEFAULT_THREAD_INTERACTION_MODE,
           runtimeMode: "approval-required",
           createdAt: now,
         },
@@ -222,6 +303,9 @@ describe("decider project scripts", () => {
           projectId: asProjectId("project-1"),
           title: "Project",
           workspaceRoot: "/tmp/project",
+          kind: DEFAULT_PROJECT_KIND,
+          bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+          bootstrapThreadId: null,
           defaultModelSelection: null,
           scripts: [],
           createdAt: now,
@@ -249,7 +333,7 @@ describe("decider project scripts", () => {
             provider: "codex",
             model: "gpt-5-codex",
           },
-          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          interactionMode: DEFAULT_THREAD_INTERACTION_MODE,
           runtimeMode: "full-access",
           branch: null,
           worktreePath: null,
@@ -304,6 +388,9 @@ describe("decider project scripts", () => {
           projectId: asProjectId("project-1"),
           title: "Project",
           workspaceRoot: "/tmp/project",
+          kind: DEFAULT_PROJECT_KIND,
+          bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+          bootstrapThreadId: null,
           defaultModelSelection: null,
           scripts: [],
           createdAt: now,
@@ -331,7 +418,7 @@ describe("decider project scripts", () => {
             provider: "codex",
             model: "gpt-5-codex",
           },
-          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          interactionMode: DEFAULT_THREAD_INTERACTION_MODE,
           runtimeMode: "approval-required",
           branch: null,
           worktreePath: null,
@@ -365,5 +452,172 @@ describe("decider project scripts", () => {
         interactionMode: "plan",
       },
     });
+  });
+
+  it("emits project.bootstrap-state-set from project.bootstrap-state.set", async () => {
+    const now = new Date().toISOString();
+    const readModel = await createReadModelWithProject({ now });
+
+    const result = await Effect.runPromise(
+      decideOrchestrationCommand({
+        command: {
+          type: "project.bootstrap-state.set",
+          commandId: CommandId.makeUnsafe("cmd-project-setup-state"),
+          projectId: asProjectId("project-1"),
+          bootstrapState: "bootstrapping",
+          createdAt: now,
+        },
+        readModel,
+      }),
+    );
+
+    const singleResult = Array.isArray(result) ? null : result;
+    if (singleResult === null) {
+      throw new Error("Expected a single project.bootstrap-state-set event.");
+    }
+    expect(singleResult).toMatchObject({
+      type: "project.bootstrap-state-set",
+      payload: {
+        projectId: asProjectId("project-1"),
+        bootstrapState: "bootstrapping",
+        updatedAt: now,
+      },
+    });
+  });
+
+  it("rejects extra threads while a DotCanvas project is still bootstrapping", async () => {
+    const now = new Date().toISOString();
+    const readModel = await createReadModelWithProjectAndThread({
+      now,
+      kind: "dotcanvas",
+      bootstrapState: "bootstrapping",
+      threadInteractionMode: "default",
+    });
+
+    const exit = await Effect.runPromise(
+      Effect.exit(
+        decideOrchestrationCommand({
+          command: {
+            type: "thread.create",
+            commandId: CommandId.makeUnsafe("cmd-thread-create-2"),
+            threadId: ThreadId.makeUnsafe("thread-2"),
+            projectId: asProjectId("project-1"),
+            title: "Another Thread",
+            modelSelection: {
+              provider: "codex",
+              model: "gpt-5-codex",
+            },
+            interactionMode: "default",
+            runtimeMode: "approval-required",
+            branch: null,
+            worktreePath: null,
+            createdAt: now,
+          },
+          readModel,
+        }),
+      ),
+    );
+
+    expect(exit._tag).toBe("Failure");
+  });
+
+  it("rejects non-Codex bootstrap threads while a DotCanvas project is still bootstrapping", async () => {
+    const now = new Date().toISOString();
+    const readModel = await createReadModelWithProject({
+      now,
+      kind: "dotcanvas",
+      bootstrapState: "bootstrapping",
+    });
+
+    const exit = await Effect.runPromise(
+      Effect.exit(
+        decideOrchestrationCommand({
+          command: {
+            type: "thread.create",
+            commandId: CommandId.makeUnsafe("cmd-thread-create-claude"),
+            threadId: ThreadId.makeUnsafe("thread-2"),
+            projectId: asProjectId("project-1"),
+            title: "Intake",
+            modelSelection: {
+              provider: "claudeAgent",
+              model: "claude-opus-4-6",
+            },
+            interactionMode: "default",
+            runtimeMode: "approval-required",
+            branch: null,
+            worktreePath: null,
+            createdAt: now,
+          },
+          readModel,
+        }),
+      ),
+    );
+
+    expect(exit._tag).toBe("Failure");
+  });
+
+  it("rejects interaction mode changes while bootstrap is locked", async () => {
+    const now = new Date().toISOString();
+    const readModel = await createReadModelWithProjectAndThread({
+      now,
+      kind: "dotcanvas",
+      bootstrapState: "bootstrapping",
+      threadInteractionMode: "default",
+    });
+
+    const exit = await Effect.runPromise(
+      Effect.exit(
+        decideOrchestrationCommand({
+          command: {
+            type: "thread.interaction-mode.set",
+            commandId: CommandId.makeUnsafe("cmd-thread-interaction-mode-set"),
+            threadId: ThreadId.makeUnsafe("thread-1"),
+            interactionMode: "default",
+            createdAt: now,
+          },
+          readModel,
+        }),
+      ),
+    );
+
+    expect(exit._tag).toBe("Failure");
+  });
+
+  it("rejects non-Codex turn overrides while bootstrap is still locked", async () => {
+    const now = new Date().toISOString();
+    const readModel = await createReadModelWithProjectAndThread({
+      now,
+      kind: "dotcanvas",
+      bootstrapState: "bootstrapping",
+      threadInteractionMode: "default",
+    });
+
+    const exit = await Effect.runPromise(
+      Effect.exit(
+        decideOrchestrationCommand({
+          command: {
+            type: "thread.turn.start",
+            commandId: CommandId.makeUnsafe("cmd-turn-start-claude"),
+            threadId: ThreadId.makeUnsafe("thread-1"),
+            message: {
+              messageId: asMessageId("message-user-claude"),
+              role: "user",
+              text: "hello",
+              attachments: [],
+            },
+            modelSelection: {
+              provider: "claudeAgent",
+              model: "claude-opus-4-6",
+            },
+            interactionMode: "default",
+            runtimeMode: "approval-required",
+            createdAt: now,
+          },
+          readModel,
+        }),
+      ),
+    );
+
+    expect(exit._tag).toBe("Failure");
   });
 });

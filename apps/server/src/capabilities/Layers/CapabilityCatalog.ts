@@ -483,15 +483,13 @@ function toBundleError(operation: string, cause: unknown): CapabilityReadPluginB
   });
 }
 
-function forceRestartOption(
-  forceRestart: boolean | undefined,
-): { readonly forceRestart?: boolean } {
+function forceRestartOption(forceRestart: boolean | undefined): {
+  readonly forceRestart?: boolean;
+} {
   return forceRestart === undefined ? {} : { forceRestart };
 }
 
-function forceReloadOption(
-  forceReload: boolean | undefined,
-): { readonly forceReload?: boolean } {
+function forceReloadOption(forceReload: boolean | undefined): { readonly forceReload?: boolean } {
   return forceReload === undefined ? {} : { forceReload };
 }
 

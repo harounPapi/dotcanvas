@@ -85,7 +85,10 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           title,
           model_selection_json AS "modelSelection",
           runtime_mode AS "runtimeMode",
-          interaction_mode AS "interactionMode",
+          CASE
+            WHEN interaction_mode = 'start' THEN 'default'
+            ELSE interaction_mode
+          END AS "interactionMode",
           branch,
           worktree_path AS "worktreePath",
           latest_turn_id AS "latestTurnId",
@@ -109,7 +112,10 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           title,
           model_selection_json AS "modelSelection",
           runtime_mode AS "runtimeMode",
-          interaction_mode AS "interactionMode",
+          CASE
+            WHEN interaction_mode = 'start' THEN 'default'
+            ELSE interaction_mode
+          END AS "interactionMode",
           branch,
           worktree_path AS "worktreePath",
           latest_turn_id AS "latestTurnId",

@@ -1,8 +1,9 @@
 import { Schema } from "effect";
-import { PositiveInt, TrimmedNonEmptyString } from "./baseSchemas";
+import { PositiveInt, ProjectId, ThreadId, TrimmedNonEmptyString } from "./baseSchemas";
 
 const PROJECT_SEARCH_ENTRIES_MAX_LIMIT = 200;
 const PROJECT_WRITE_FILE_PATH_MAX_LENGTH = 512;
+const PROJECT_DIRECTORY_NAME_MAX_LENGTH = 255;
 
 export const ProjectSearchEntriesInput = Schema.Struct({
   cwd: TrimmedNonEmptyString,
@@ -11,7 +12,8 @@ export const ProjectSearchEntriesInput = Schema.Struct({
 });
 export type ProjectSearchEntriesInput = typeof ProjectSearchEntriesInput.Type;
 
-const ProjectEntryKind = Schema.Literals(["file", "directory"]);
+export const ProjectEntryKind = Schema.Literals(["file", "directory"]);
+export type ProjectEntryKind = typeof ProjectEntryKind.Type;
 
 export const ProjectEntry = Schema.Struct({
   path: TrimmedNonEmptyString,
@@ -48,6 +50,73 @@ export type ProjectWriteFileResult = typeof ProjectWriteFileResult.Type;
 
 export class ProjectWriteFileError extends Schema.TaggedErrorClass<ProjectWriteFileError>()(
   "ProjectWriteFileError",
+  {
+    message: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect),
+  },
+) {}
+
+export const ProjectStatPathInput = Schema.Struct({
+  cwd: TrimmedNonEmptyString,
+  relativePath: TrimmedNonEmptyString.check(Schema.isMaxLength(PROJECT_WRITE_FILE_PATH_MAX_LENGTH)),
+});
+export type ProjectStatPathInput = typeof ProjectStatPathInput.Type;
+
+export const ProjectStatPathResult = Schema.Struct({
+  relativePath: TrimmedNonEmptyString,
+  exists: Schema.Boolean,
+  kind: Schema.optional(ProjectEntryKind),
+});
+export type ProjectStatPathResult = typeof ProjectStatPathResult.Type;
+
+export class ProjectStatPathError extends Schema.TaggedErrorClass<ProjectStatPathError>()(
+  "ProjectStatPathError",
+  {
+    message: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect),
+  },
+) {}
+
+export const ProjectCreateDirectoryInput = Schema.Struct({
+  parentPath: TrimmedNonEmptyString,
+  directoryName: TrimmedNonEmptyString.check(
+    Schema.isMaxLength(PROJECT_DIRECTORY_NAME_MAX_LENGTH),
+    Schema.isPattern(/^[^/\\]+$/),
+  ),
+});
+export type ProjectCreateDirectoryInput = typeof ProjectCreateDirectoryInput.Type;
+
+export const ProjectCreateDirectoryResult = Schema.Struct({
+  workspaceRoot: TrimmedNonEmptyString,
+});
+export type ProjectCreateDirectoryResult = typeof ProjectCreateDirectoryResult.Type;
+
+export class ProjectCreateDirectoryError extends Schema.TaggedErrorClass<ProjectCreateDirectoryError>()(
+  "ProjectCreateDirectoryError",
+  {
+    message: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect),
+  },
+) {}
+
+export const ProjectBootstrapStartInput = Schema.Struct({
+  parentPath: TrimmedNonEmptyString,
+  projectName: TrimmedNonEmptyString.check(
+    Schema.isMaxLength(PROJECT_DIRECTORY_NAME_MAX_LENGTH),
+    Schema.isPattern(/^[^/\\]+$/),
+  ),
+});
+export type ProjectBootstrapStartInput = typeof ProjectBootstrapStartInput.Type;
+
+export const ProjectBootstrapStartResult = Schema.Struct({
+  projectId: ProjectId,
+  threadId: ThreadId,
+  workspaceRoot: TrimmedNonEmptyString,
+});
+export type ProjectBootstrapStartResult = typeof ProjectBootstrapStartResult.Type;
+
+export class ProjectBootstrapStartError extends Schema.TaggedErrorClass<ProjectBootstrapStartError>()(
+  "ProjectBootstrapStartError",
   {
     message: TrimmedNonEmptyString,
     cause: Schema.optional(Schema.Defect),

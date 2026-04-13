@@ -398,6 +398,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
       "provider.thread_id": input.threadId,
       "provider.interaction_mode": input.interactionMode,
       "provider.attachment_count": input.attachments.length,
+      "provider.has_developer_instructions": input.developerInstructions ? "true" : "false",
     });
     let metricProvider = "unknown";
     let metricModel = input.modelSelection?.model;
@@ -432,6 +433,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
         interactionMode: input.interactionMode,
         attachmentCount: input.attachments.length,
         hasInput: typeof input.input === "string" && input.input.trim().length > 0,
+        hasDeveloperInstructions: input.developerInstructions ? "true" : "false",
       });
       return turn;
     }).pipe(

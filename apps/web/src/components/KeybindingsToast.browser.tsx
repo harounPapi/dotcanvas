@@ -1,6 +1,8 @@
 import "../index.css";
 
 import {
+  DEFAULT_PROJECT_KIND,
+  DEFAULT_PROJECT_BOOTSTRAP_STATE,
   DEFAULT_SERVER_SETTINGS,
   ORCHESTRATION_WS_METHODS,
   type MessageId,
@@ -66,6 +68,7 @@ function createBaseServerConfig(): ServerConfig {
       },
     ],
     availableEditors: [],
+    availableProjectApps: [],
     observability: {
       logsDirectoryPath: "/repo/project/.t3/logs",
       localTracingEnabled: true,
@@ -93,6 +96,9 @@ function createMinimalSnapshot(): OrchestrationReadModel {
         id: PROJECT_ID,
         title: "Project",
         workspaceRoot: "/repo/project",
+        kind: DEFAULT_PROJECT_KIND,
+        bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+        bootstrapThreadId: null,
         defaultModelSelection: {
           provider: "codex",
           model: "gpt-5",

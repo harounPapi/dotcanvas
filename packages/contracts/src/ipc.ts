@@ -25,8 +25,14 @@ import type {
   PluginBundleResult,
 } from "./capabilities";
 import type {
+  ProjectBootstrapStartInput,
+  ProjectBootstrapStartResult,
+  ProjectCreateDirectoryInput,
+  ProjectCreateDirectoryResult,
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
+  ProjectStatPathInput,
+  ProjectStatPathResult,
   ProjectWriteFileInput,
   ProjectWriteFileResult,
 } from "./project";
@@ -56,6 +62,7 @@ import type {
   OrchestrationReadModel,
 } from "./orchestration";
 import { EditorId } from "./editor";
+import { ProjectAppId } from "./projectApp";
 import { ServerSettings, ServerSettingsPatch } from "./settings";
 
 export interface ContextMenuItem<T extends string = string> {
@@ -144,7 +151,10 @@ export interface NativeApi {
     onEvent: (callback: (event: TerminalEvent) => void) => () => void;
   };
   projects: {
+    bootstrapStart: (input: ProjectBootstrapStartInput) => Promise<ProjectBootstrapStartResult>;
+    createDirectory: (input: ProjectCreateDirectoryInput) => Promise<ProjectCreateDirectoryResult>;
     searchEntries: (input: ProjectSearchEntriesInput) => Promise<ProjectSearchEntriesResult>;
+    statPath: (input: ProjectStatPathInput) => Promise<ProjectStatPathResult>;
     writeFile: (input: ProjectWriteFileInput) => Promise<ProjectWriteFileResult>;
   };
   capabilities: {
@@ -153,6 +163,7 @@ export interface NativeApi {
   };
   shell: {
     openInEditor: (cwd: string, editor: EditorId) => Promise<void>;
+    openInProjectApp: (cwd: string, app: ProjectAppId) => Promise<void>;
     openExternal: (url: string) => Promise<void>;
   };
   git: {

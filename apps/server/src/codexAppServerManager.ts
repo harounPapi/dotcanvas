@@ -17,7 +17,7 @@ import {
   type ProviderSession,
   type ProviderTurnStartResult,
   RuntimeMode,
-  ProviderInteractionMode,
+  ThreadInteractionMode,
 } from "@t3tools/contracts";
 import { normalizeModelSlug } from "@t3tools/shared/model";
 import { Effect, ServiceMap } from "effect";
@@ -71,6 +71,19 @@ interface CodexUserInputAnswer {
   answers: string[];
 }
 
+type CodexCollaborationModeKind = "default" | "plan";
+
+interface CodexCollaborationModeSettings {
+  model: string;
+  reasoning_effort: string;
+  developer_instructions: string;
+}
+
+interface CodexCollaborationModePreset {
+  mode: CodexCollaborationModeKind;
+  settings: CodexCollaborationModeSettings;
+}
+
 interface CodexSessionContext {
   session: ProviderSession;
   account: CodexAccountSnapshot;
@@ -114,7 +127,10 @@ export interface CodexAppServerSendTurnInput {
   readonly model?: string;
   readonly serviceTier?: string | null;
   readonly effort?: string;
-  readonly interactionMode?: ProviderInteractionMode;
+  // DotCanvas thread modes are app-level concepts. Translate them to a
+  // supported Codex collaboration preset at the app-server boundary.
+  readonly interactionMode?: ThreadInteractionMode;
+  readonly developerInstructions?: string;
 }
 
 export interface CodexAppServerStartSessionInput {
@@ -334,32 +350,29 @@ export function normalizeCodexModelSlug(
 }
 
 function buildCodexCollaborationMode(input: {
-  readonly interactionMode?: "default" | "plan";
+  readonly interactionMode?: ThreadInteractionMode;
   readonly model?: string;
   readonly effort?: string;
-}):
-  | {
-      mode: "default" | "plan";
-      settings: {
-        model: string;
-        reasoning_effort: string;
-        developer_instructions: string;
-      };
-    }
-  | undefined {
-  if (input.interactionMode === undefined) {
+  readonly developerInstructions?: string;
+}): CodexCollaborationModePreset | undefined {
+  if (input.interactionMode === undefined && input.developerInstructions === undefined) {
     return undefined;
   }
   const model = normalizeCodexModelSlug(input.model) ?? "gpt-5.3-codex";
+  const mode = input.interactionMode ?? "default";
+  const baseDeveloperInstructions =
+    mode === "plan"
+      ? CODEX_PLAN_MODE_DEVELOPER_INSTRUCTIONS
+      : CODEX_DEFAULT_MODE_DEVELOPER_INSTRUCTIONS;
   return {
-    mode: input.interactionMode,
+    mode,
     settings: {
       model,
       reasoning_effort: input.effort ?? "medium",
       developer_instructions:
-        input.interactionMode === "plan"
-          ? CODEX_PLAN_MODE_DEVELOPER_INSTRUCTIONS
-          : CODEX_DEFAULT_MODE_DEVELOPER_INSTRUCTIONS,
+        input.developerInstructions !== undefined
+          ? `${baseDeveloperInstructions}\n\n${input.developerInstructions}`
+          : baseDeveloperInstructions,
     },
   };
 }
@@ -712,14 +725,7 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       model?: string;
       serviceTier?: string | null;
       effort?: string;
-      collaborationMode?: {
-        mode: "default" | "plan";
-        settings: {
-          model: string;
-          reasoning_effort: string;
-          developer_instructions: string;
-        };
-      };
+      collaborationMode?: CodexCollaborationModePreset;
     } = {
       threadId: providerThreadId,
       input: turnInput,
@@ -741,6 +747,9 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       ...(input.interactionMode !== undefined ? { interactionMode: input.interactionMode } : {}),
       ...(normalizedModel !== undefined ? { model: normalizedModel } : {}),
       ...(input.effort !== undefined ? { effort: input.effort } : {}),
+      ...(input.developerInstructions !== undefined
+        ? { developerInstructions: input.developerInstructions }
+        : {}),
     });
     if (collaborationMode) {
       if (!turnStartParams.model) {
@@ -749,7 +758,26 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       turnStartParams.collaborationMode = collaborationMode;
     }
 
-    const response = await this.sendRequest(context, "turn/start", turnStartParams);
+    let response: unknown;
+    try {
+      response = await this.sendRequest(context, "turn/start", turnStartParams);
+    } catch (cause) {
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      const appThreadInteractionMode = input.interactionMode ?? "unset";
+      const codexCollaborationMode = collaborationMode?.mode ?? "unset";
+      await Effect.logWarning("codex app-server turn/start failed", {
+        threadId: context.session.threadId,
+        providerThreadId,
+        appThreadInteractionMode,
+        codexCollaborationMode,
+        model: turnStartParams.model ?? null,
+        cause: detail,
+      }).pipe(this.runPromise);
+      throw new Error(
+        `turn/start failed (threadInteractionMode=${appThreadInteractionMode}, codexCollaborationMode=${codexCollaborationMode}): ${detail}`,
+        { cause },
+      );
+    }
 
     const turn = this.readObject(this.readObject(response), "turn");
     const turnIdRaw = this.readString(turn, "id");

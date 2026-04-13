@@ -3,7 +3,9 @@ import { it } from "@effect/vitest";
 import { Effect, Schema } from "effect";
 
 import {
-  DEFAULT_PROVIDER_INTERACTION_MODE,
+  DEFAULT_THREAD_INTERACTION_MODE,
+  DEFAULT_PROJECT_KIND,
+  DEFAULT_PROJECT_BOOTSTRAP_STATE,
   DEFAULT_RUNTIME_MODE,
   OrchestrationCommand,
   OrchestrationEvent,
@@ -85,6 +87,8 @@ it.effect("trims branded ids and command string fields at decode boundaries", ()
       projectId: " project-1 ",
       title: " Project Title ",
       workspaceRoot: " /tmp/workspace ",
+      kind: DEFAULT_PROJECT_KIND,
+      bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
       defaultModelSelection: {
         provider: "codex",
         model: " gpt-5.2 ",
@@ -117,6 +121,27 @@ it.effect("decodes historical project.created payloads with a default provider",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
     assert.strictEqual(parsed.defaultModelSelection?.provider, "codex");
+    assert.strictEqual(parsed.kind, DEFAULT_PROJECT_KIND);
+    assert.strictEqual(parsed.bootstrapState, DEFAULT_PROJECT_BOOTSTRAP_STATE);
+  }),
+);
+
+it.effect("decodes plan interaction mode on thread.turn.start", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeThreadTurnStartCommand({
+      type: "thread.turn.start",
+      commandId: "cmd-turn-start",
+      threadId: "thread-1",
+      message: {
+        messageId: "msg-1",
+        role: "user",
+        text: "hello",
+        attachments: [],
+      },
+      interactionMode: "plan",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.interactionMode, "plan");
   }),
 );
 
@@ -143,6 +168,8 @@ it.effect("rejects command fields that become empty after trim", () =>
         projectId: "project-1",
         title: "  ",
         workspaceRoot: "/tmp/workspace",
+        kind: DEFAULT_PROJECT_KIND,
+        bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
         createdAt: "2026-01-01T00:00:00.000Z",
       }),
     );
@@ -166,7 +193,7 @@ it.effect("decodes thread.turn.start defaults for provider and runtime mode", ()
     });
     assert.strictEqual(parsed.modelSelection, undefined);
     assert.strictEqual(parsed.runtimeMode, DEFAULT_RUNTIME_MODE);
-    assert.strictEqual(parsed.interactionMode, DEFAULT_PROVIDER_INTERACTION_MODE);
+    assert.strictEqual(parsed.interactionMode, DEFAULT_THREAD_INTERACTION_MODE);
   }),
 );
 
@@ -191,7 +218,7 @@ it.effect("preserves explicit provider and runtime mode in thread.turn.start", (
     });
     assert.strictEqual(parsed.modelSelection?.provider, "codex");
     assert.strictEqual(parsed.runtimeMode, "full-access");
-    assert.strictEqual(parsed.interactionMode, DEFAULT_PROVIDER_INTERACTION_MODE);
+    assert.strictEqual(parsed.interactionMode, DEFAULT_THREAD_INTERACTION_MODE);
   }),
 );
 
@@ -467,7 +494,7 @@ it.effect(
       });
       assert.strictEqual(parsed.modelSelection, undefined);
       assert.strictEqual(parsed.runtimeMode, DEFAULT_RUNTIME_MODE);
-      assert.strictEqual(parsed.interactionMode, DEFAULT_PROVIDER_INTERACTION_MODE);
+      assert.strictEqual(parsed.interactionMode, DEFAULT_THREAD_INTERACTION_MODE);
       assert.strictEqual(parsed.sourceProposedPlan, undefined);
     }),
 );

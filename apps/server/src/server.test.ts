@@ -4,6 +4,8 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 
 import {
   CommandId,
+  DEFAULT_PROJECT_KIND,
+  DEFAULT_PROJECT_BOOTSTRAP_STATE,
   DEFAULT_SERVER_SETTINGS,
   GitCommandError,
   KeybindingRule,
@@ -97,6 +99,11 @@ const defaultModelSelection = {
   provider: "codex",
   model: "gpt-5-codex",
 } as const;
+const defaultProjectFields = {
+  kind: DEFAULT_PROJECT_KIND,
+  bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+  bootstrapThreadId: null,
+} as const;
 
 const makeDefaultOrchestrationReadModel = () => {
   const now = new Date().toISOString();
@@ -108,6 +115,7 @@ const makeDefaultOrchestrationReadModel = () => {
         id: defaultProjectId,
         title: "Default Project",
         workspaceRoot: "/tmp/default-project",
+        ...defaultProjectFields,
         defaultModelSelection,
         scripts: [],
         createdAt: now,
@@ -1238,6 +1246,59 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 
+  it.effect("routes websocket rpc projects.statPath", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const workspaceDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-ws-project-stat-" });
+      yield* fs.makeDirectory(path.join(workspaceDir, "DotCanvas"));
+      yield* fs.writeFileString(path.join(workspaceDir, "DotCanvas", "memory.md"), "# Memory\n");
+
+      yield* buildAppUnderTest();
+
+      const wsUrl = yield* getWsServerUrl("/ws");
+      const fileResponse = yield* Effect.scoped(
+        withWsRpcClient(wsUrl, (client) =>
+          client[WS_METHODS.projectsStatPath]({
+            cwd: workspaceDir,
+            relativePath: "DotCanvas/memory.md",
+          }),
+        ),
+      );
+      const directoryResponse = yield* Effect.scoped(
+        withWsRpcClient(wsUrl, (client) =>
+          client[WS_METHODS.projectsStatPath]({
+            cwd: workspaceDir,
+            relativePath: "DotCanvas",
+          }),
+        ),
+      );
+      const missingResponse = yield* Effect.scoped(
+        withWsRpcClient(wsUrl, (client) =>
+          client[WS_METHODS.projectsStatPath]({
+            cwd: workspaceDir,
+            relativePath: "DotCanvas/project-brief.md",
+          }),
+        ),
+      );
+
+      assert.deepEqual(fileResponse, {
+        relativePath: "DotCanvas/memory.md",
+        exists: true,
+        kind: "file",
+      });
+      assert.deepEqual(directoryResponse, {
+        relativePath: "DotCanvas",
+        exists: true,
+        kind: "directory",
+      });
+      assert.deepEqual(missingResponse, {
+        relativePath: "DotCanvas/project-brief.md",
+        exists: false,
+      });
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
   it.effect("routes websocket rpc shell.openInEditor", () =>
     Effect.gen(function* () {
       let openedInput: { cwd: string; editor: EditorId } | null = null;
@@ -1266,6 +1327,34 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 
+  it.effect("routes websocket rpc shell.openInProjectApp", () =>
+    Effect.gen(function* () {
+      let openedInput: { cwd: string; app: "obsidian" } | null = null;
+      yield* buildAppUnderTest({
+        layers: {
+          open: {
+            openInProjectApp: (input) =>
+              Effect.sync(() => {
+                openedInput = input as { cwd: string; app: "obsidian" };
+              }),
+          },
+        },
+      });
+
+      const wsUrl = yield* getWsServerUrl("/ws");
+      yield* Effect.scoped(
+        withWsRpcClient(wsUrl, (client) =>
+          client[WS_METHODS.shellOpenInProjectApp]({
+            cwd: "/tmp/project",
+            app: "obsidian",
+          }),
+        ),
+      );
+
+      assert.deepEqual(openedInput, { cwd: "/tmp/project", app: "obsidian" });
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
   it.effect("routes websocket rpc shell.openInEditor errors", () =>
     Effect.gen(function* () {
       const openError = new OpenError({ message: "Editor command not found: cursor" });
@@ -1283,6 +1372,31 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
           client[WS_METHODS.shellOpenInEditor]({
             cwd: "/tmp/project",
             editor: "cursor",
+          }),
+        ).pipe(Effect.result),
+      );
+
+      assertFailure(result, openError);
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
+  it.effect("routes websocket rpc shell.openInProjectApp errors", () =>
+    Effect.gen(function* () {
+      const openError = new OpenError({ message: "Editor command not found: obsidian" });
+      yield* buildAppUnderTest({
+        layers: {
+          open: {
+            openInProjectApp: () => Effect.fail(openError),
+          },
+        },
+      });
+
+      const wsUrl = yield* getWsServerUrl("/ws");
+      const result = yield* Effect.scoped(
+        withWsRpcClient(wsUrl, (client) =>
+          client[WS_METHODS.shellOpenInProjectApp]({
+            cwd: "/tmp/project",
+            app: "obsidian",
           }),
         ).pipe(Effect.result),
       );
@@ -1912,6 +2026,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
             id: ProjectId.makeUnsafe("project-a"),
             title: "Project A",
             workspaceRoot: "/tmp/project-a",
+            ...defaultProjectFields,
             defaultModelSelection,
             scripts: [],
             createdAt: now,

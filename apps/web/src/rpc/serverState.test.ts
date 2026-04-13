@@ -57,6 +57,7 @@ const baseServerConfig: ServerConfig = {
   issues: [],
   providers: defaultProviders,
   availableEditors: ["cursor"],
+  availableProjectApps: [],
   observability: {
     logsDirectoryPath: "/tmp/workspace/.config/logs",
     localTracingEnabled: true,

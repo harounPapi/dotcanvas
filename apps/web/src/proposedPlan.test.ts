@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildCollapsedProposedPlanPreviewMarkdown,
+  buildBootstrapPlanApplyPrompt,
   buildPlanImplementationThreadTitle,
   buildPlanImplementationPrompt,
   buildProposedPlanMarkdownFilename,
@@ -24,6 +25,14 @@ describe("buildPlanImplementationPrompt", () => {
   it("formats the plan exactly like the Codex follow-up handoff prompt", () => {
     expect(buildPlanImplementationPrompt("## Ship it\n\n- step 1\n")).toBe(
       "PLEASE IMPLEMENT THIS PLAN:\n## Ship it\n\n- step 1",
+    );
+  });
+});
+
+describe("buildBootstrapPlanApplyPrompt", () => {
+  it("formats the bootstrap-approval handoff prompt", () => {
+    expect(buildBootstrapPlanApplyPrompt("## Setup room\n\n- step 1\n")).toBe(
+      "PLEASE IMPLEMENT THIS BOOTSTRAP PLAN:\n## Setup room\n\n- step 1",
     );
   });
 });
@@ -69,10 +78,12 @@ describe("resolvePlanFollowUpSubmission", () => {
       resolvePlanFollowUpSubmission({
         draftText: "   ",
         planMarkdown: "## Ship it\n\n- step 1\n",
+        currentMode: "plan",
       }),
     ).toEqual({
       text: "PLEASE IMPLEMENT THIS PLAN:\n## Ship it\n\n- step 1",
       interactionMode: "default",
+      action: "apply",
     });
   });
 
@@ -81,10 +92,40 @@ describe("resolvePlanFollowUpSubmission", () => {
       resolvePlanFollowUpSubmission({
         draftText: "Refine step 2 first",
         planMarkdown: "## Ship it\n\n- step 1\n",
+        currentMode: "plan",
       }),
     ).toEqual({
       text: "Refine step 2 first",
       interactionMode: "plan",
+      action: "refine",
+    });
+  });
+
+  it("keeps default mode when refining a bootstrap plan", () => {
+    expect(
+      resolvePlanFollowUpSubmission({
+        draftText: "Tighten the workstreams first",
+        planMarkdown: "## Setup room\n\n- step 1\n",
+        currentMode: "bootstrap",
+      }),
+    ).toEqual({
+      text: "Tighten the workstreams first",
+      interactionMode: "default",
+      action: "refine",
+    });
+  });
+
+  it("uses the bootstrap apply prompt when applying an approved setup plan", () => {
+    expect(
+      resolvePlanFollowUpSubmission({
+        draftText: "   ",
+        planMarkdown: "## Setup room\n\n- step 1\n",
+        currentMode: "bootstrap",
+      }),
+    ).toEqual({
+      text: "PLEASE IMPLEMENT THIS BOOTSTRAP PLAN:\n## Setup room\n\n- step 1",
+      interactionMode: "default",
+      action: "apply",
     });
   });
 });

@@ -11,6 +11,7 @@ import {
   PluginBundleResult,
 } from "./capabilities";
 import { OpenError, OpenInEditorInput } from "./editor";
+import { OpenInProjectAppInput } from "./projectApp";
 import {
   GitActionProgressEvent,
   GitCheckoutInput,
@@ -53,9 +54,18 @@ import {
   OrchestrationRpcSchemas,
 } from "./orchestration";
 import {
+  ProjectBootstrapStartError,
+  ProjectBootstrapStartInput,
+  ProjectBootstrapStartResult,
+  ProjectCreateDirectoryError,
+  ProjectCreateDirectoryInput,
+  ProjectCreateDirectoryResult,
   ProjectSearchEntriesError,
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
+  ProjectStatPathError,
+  ProjectStatPathInput,
+  ProjectStatPathResult,
   ProjectWriteFileError,
   ProjectWriteFileInput,
   ProjectWriteFileResult,
@@ -86,13 +96,17 @@ export const WS_METHODS = {
   projectsList: "projects.list",
   projectsAdd: "projects.add",
   projectsRemove: "projects.remove",
+  projectsBootstrapStart: "projects.bootstrapStart",
+  projectsCreateDirectory: "projects.createDirectory",
   projectsSearchEntries: "projects.searchEntries",
+  projectsStatPath: "projects.statPath",
   projectsWriteFile: "projects.writeFile",
   capabilitiesSearch: "capabilities.search",
   capabilitiesReadPluginBundle: "capabilities.readPluginBundle",
 
   // Shell methods
   shellOpenInEditor: "shell.openInEditor",
+  shellOpenInProjectApp: "shell.openInProjectApp",
 
   // Git methods
   gitPull: "git.pull",
@@ -165,6 +179,24 @@ export const WsProjectsSearchEntriesRpc = Rpc.make(WS_METHODS.projectsSearchEntr
   error: ProjectSearchEntriesError,
 });
 
+export const WsProjectsCreateDirectoryRpc = Rpc.make(WS_METHODS.projectsCreateDirectory, {
+  payload: ProjectCreateDirectoryInput,
+  success: ProjectCreateDirectoryResult,
+  error: ProjectCreateDirectoryError,
+});
+
+export const WsProjectsBootstrapStartRpc = Rpc.make(WS_METHODS.projectsBootstrapStart, {
+  payload: ProjectBootstrapStartInput,
+  success: ProjectBootstrapStartResult,
+  error: ProjectBootstrapStartError,
+});
+
+export const WsProjectsStatPathRpc = Rpc.make(WS_METHODS.projectsStatPath, {
+  payload: ProjectStatPathInput,
+  success: ProjectStatPathResult,
+  error: ProjectStatPathError,
+});
+
 export const WsProjectsWriteFileRpc = Rpc.make(WS_METHODS.projectsWriteFile, {
   payload: ProjectWriteFileInput,
   success: ProjectWriteFileResult,
@@ -185,6 +217,11 @@ export const WsCapabilitiesReadPluginBundleRpc = Rpc.make(WS_METHODS.capabilitie
 
 export const WsShellOpenInEditorRpc = Rpc.make(WS_METHODS.shellOpenInEditor, {
   payload: OpenInEditorInput,
+  error: OpenError,
+});
+
+export const WsShellOpenInProjectAppRpc = Rpc.make(WS_METHODS.shellOpenInProjectApp, {
+  payload: OpenInProjectAppInput,
   error: OpenError,
 });
 
@@ -362,11 +399,15 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerUpsertKeybindingRpc,
   WsServerGetSettingsRpc,
   WsServerUpdateSettingsRpc,
+  WsProjectsBootstrapStartRpc,
+  WsProjectsCreateDirectoryRpc,
   WsProjectsSearchEntriesRpc,
+  WsProjectsStatPathRpc,
   WsProjectsWriteFileRpc,
   WsCapabilitiesSearchRpc,
   WsCapabilitiesReadPluginBundleRpc,
   WsShellOpenInEditorRpc,
+  WsShellOpenInProjectAppRpc,
   WsSubscribeGitStatusRpc,
   WsGitPullRpc,
   WsGitRefreshStatusRpc,

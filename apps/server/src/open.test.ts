@@ -7,7 +7,9 @@ import {
   isCommandAvailable,
   launchDetached,
   resolveAvailableEditors,
+  resolveAvailableProjectApps,
   resolveEditorLaunch,
+  resolveProjectAppLaunch,
 } from "./open";
 
 it.layer(NodeServices.layer)("resolveEditorLaunch", (it) => {
@@ -213,6 +215,21 @@ it.layer(NodeServices.layer)("resolveEditorLaunch", (it) => {
   );
 });
 
+it.layer(NodeServices.layer)("resolveProjectAppLaunch", (it) => {
+  it.effect("returns commands for project apps", () =>
+    Effect.gen(function* () {
+      const obsidianLaunch = yield* resolveProjectAppLaunch({
+        cwd: "/tmp/workspace",
+        app: "obsidian",
+      });
+      assert.deepEqual(obsidianLaunch, {
+        command: "obsidian",
+        args: ["/tmp/workspace"],
+      });
+    }),
+  );
+});
+
 it.layer(NodeServices.layer)("launchDetached", (it) => {
   it.effect("resolves when command can be spawned", () =>
     Effect.gen(function* () {
@@ -321,4 +338,29 @@ it.layer(NodeServices.layer)("resolveAvailableEditors", (it) => {
       assert.deepEqual(editors, ["trae", "vscode-insiders", "vscodium", "file-manager"]);
     }),
   );
+});
+
+it.layer(NodeServices.layer)("resolveAvailableProjectApps", (it) => {
+  it.effect("returns installed project apps for command launches", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const dir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-project-apps-" });
+
+      yield* fs.writeFileString(path.join(dir, "obsidian.CMD"), "@echo off\r\n");
+      const apps = resolveAvailableProjectApps("win32", {
+        PATH: dir,
+        PATHEXT: ".COM;.EXE;.BAT;.CMD",
+      });
+      assert.deepEqual(apps, ["obsidian"]);
+    }),
+  );
+
+  it("returns no project apps when none are installed", () => {
+    const apps = resolveAvailableProjectApps("win32", {
+      PATH: "",
+      PATHEXT: ".COM;.EXE;.BAT;.CMD",
+    });
+    assert.deepEqual(apps, []);
+  });
 });

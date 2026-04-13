@@ -1489,8 +1489,13 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
           ...(input.modelSelection?.provider === "codex" && input.modelSelection.options?.fastMode
             ? { serviceTier: "fast" }
             : {}),
+          // interactionMode is a DotCanvas thread mode; the manager translates
+          // it to a supported Codex collaboration preset before turn/start.
           ...(input.interactionMode !== undefined
             ? { interactionMode: input.interactionMode }
+            : {}),
+          ...(input.developerInstructions !== undefined
+            ? { developerInstructions: input.developerInstructions }
             : {}),
           ...(codexAttachments.length > 0 ? { attachments: codexAttachments } : {}),
         };

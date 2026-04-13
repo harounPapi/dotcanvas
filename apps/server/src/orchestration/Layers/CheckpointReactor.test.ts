@@ -6,7 +6,9 @@ import { execFileSync } from "node:child_process";
 import type { ProviderKind, ProviderRuntimeEvent, ProviderSession } from "@t3tools/contracts";
 import {
   CommandId,
-  DEFAULT_PROVIDER_INTERACTION_MODE,
+  DEFAULT_THREAD_INTERACTION_MODE,
+  DEFAULT_PROJECT_KIND,
+  DEFAULT_PROJECT_BOOTSTRAP_STATE,
   EventId,
   MessageId,
   ProjectId,
@@ -291,6 +293,8 @@ describe("CheckpointReactor", () => {
         projectId: asProjectId("project-1"),
         title: "Test Project",
         workspaceRoot: options?.projectWorkspaceRoot ?? cwd,
+        kind: DEFAULT_PROJECT_KIND,
+        bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
         defaultModelSelection: {
           provider: "codex",
           model: "gpt-5-codex",
@@ -309,7 +313,7 @@ describe("CheckpointReactor", () => {
           provider: "codex",
           model: "gpt-5-codex",
         },
-        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        interactionMode: DEFAULT_THREAD_INTERACTION_MODE,
         runtimeMode: "approval-required",
         branch: null,
         worktreePath: options?.threadWorktreePath ?? cwd,
@@ -624,7 +628,7 @@ describe("CheckpointReactor", () => {
           text: "start turn",
           attachments: [],
         },
-        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        interactionMode: DEFAULT_THREAD_INTERACTION_MODE,
         runtimeMode: "approval-required",
         createdAt: new Date().toISOString(),
       }),

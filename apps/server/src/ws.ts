@@ -1,6 +1,7 @@
 import { Cause, Effect, Layer, Option, Queue, Ref, Schema, Stream } from "effect";
 import {
   CommandId,
+  DEFAULT_MODEL_BY_PROVIDER,
   EventId,
   type OrchestrationCommand,
   type GitActionProgressEvent,
@@ -11,14 +12,22 @@ import {
   OrchestrationGetSnapshotError,
   OrchestrationGetTurnDiffError,
   ORCHESTRATION_WS_METHODS,
+  ProjectBootstrapStartError,
+  ProjectCreateDirectoryError,
   ProjectSearchEntriesError,
+  ProjectStatPathError,
   ProjectWriteFileError,
+  ProjectId,
   OrchestrationReplayEventsError,
   ThreadId,
   type TerminalEvent,
   WS_METHODS,
   WsRpcGroup,
 } from "@t3tools/contracts";
+import {
+  DOTCANVAS_BOOTSTRAP_THREAD_TITLE,
+  buildDotCanvasBootstrapFiles,
+} from "@t3tools/shared/dotcanvas";
 import { clamp } from "effect/Number";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 import { RpcSerialization, RpcServer } from "effect/unstable/rpc";
@@ -30,7 +39,7 @@ import { GitCore } from "./git/Services/GitCore";
 import { GitManager } from "./git/Services/GitManager";
 import { GitStatusBroadcaster } from "./git/Services/GitStatusBroadcaster";
 import { Keybindings } from "./keybindings";
-import { Open, resolveAvailableEditors } from "./open";
+import { Open, resolveAvailableEditors, resolveAvailableProjectApps } from "./open";
 import { normalizeDispatchCommand } from "./orchestration/Normalizer";
 import { OrchestrationEngineService } from "./orchestration/Services/OrchestrationEngine";
 import { ProjectionSnapshotQuery } from "./orchestration/Services/ProjectionSnapshotQuery";
@@ -339,6 +348,7 @@ const WsRpcLayer = WsRpcGroup.toLayer(
         issues: keybindingsConfig.issues,
         providers,
         availableEditors: resolveAvailableEditors(),
+        availableProjectApps: resolveAvailableProjectApps(),
         observability: {
           logsDirectoryPath: config.logsDir,
           localTracingEnabled: true,
@@ -547,6 +557,111 @@ const WsRpcLayer = WsRpcGroup.toLayer(
           ),
           { "rpc.aggregate": "workspace" },
         ),
+      [WS_METHODS.projectsBootstrapStart]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.projectsBootstrapStart,
+          Effect.gen(function* () {
+            const projectName = input.projectName.trim();
+            const { workspaceRoot } = yield* workspaceFileSystem.createDirectory({
+              parentPath: input.parentPath,
+              directoryName: projectName,
+            });
+
+            const scaffoldFiles = buildDotCanvasBootstrapFiles({ projectTitle: projectName });
+            yield* Effect.forEach(
+              scaffoldFiles,
+              (file) =>
+                workspaceFileSystem.writeFile({
+                  cwd: workspaceRoot,
+                  relativePath: file.relativePath,
+                  contents: file.contents,
+                }),
+              { concurrency: 1 },
+            );
+
+            const createdAt = new Date().toISOString();
+            const projectId = ProjectId.makeUnsafe(crypto.randomUUID());
+            const threadId = ThreadId.makeUnsafe(crypto.randomUUID());
+            const modelSelection = {
+              provider: "codex" as const,
+              model: DEFAULT_MODEL_BY_PROVIDER.codex,
+            };
+
+            yield* orchestrationEngine.dispatch({
+              type: "project.create",
+              commandId: serverCommandId("project-bootstrap-start-project"),
+              projectId,
+              title: projectName,
+              workspaceRoot,
+              kind: "dotcanvas",
+              bootstrapState: "bootstrapping",
+              bootstrapThreadId: threadId,
+              defaultModelSelection: modelSelection,
+              createdAt,
+            });
+
+            yield* orchestrationEngine.dispatch({
+              type: "thread.create",
+              commandId: serverCommandId("project-bootstrap-start-thread"),
+              threadId,
+              projectId,
+              title: DOTCANVAS_BOOTSTRAP_THREAD_TITLE,
+              modelSelection,
+              runtimeMode: "full-access",
+              interactionMode: "default",
+              branch: null,
+              worktreePath: null,
+              createdAt,
+            });
+
+            return {
+              projectId,
+              threadId,
+              workspaceRoot,
+            };
+          }).pipe(
+            Effect.mapError(
+              (cause) =>
+                new ProjectBootstrapStartError({
+                  message:
+                    cause instanceof Error
+                      ? cause.message
+                      : "Failed to bootstrap DotCanvas project.",
+                  cause,
+                }),
+            ),
+          ),
+          { "rpc.aggregate": "workspace" },
+        ),
+      [WS_METHODS.projectsCreateDirectory]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.projectsCreateDirectory,
+          workspaceFileSystem.createDirectory(input).pipe(
+            Effect.mapError(
+              (cause) =>
+                new ProjectCreateDirectoryError({
+                  message: cause.detail,
+                  cause,
+                }),
+            ),
+          ),
+          { "rpc.aggregate": "workspace" },
+        ),
+      [WS_METHODS.projectsStatPath]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.projectsStatPath,
+          workspaceFileSystem.statPath(input).pipe(
+            Effect.mapError((cause) => {
+              return new ProjectStatPathError({
+                message: Schema.is(WorkspacePathOutsideRootError)(cause)
+                  ? "Workspace file path must stay within the project root."
+                  : cause.detail,
+                cause,
+              });
+            }),
+          ),
+          { "rpc.aggregate": "workspace" },
+        ),
       [WS_METHODS.projectsWriteFile]: (input) =>
         observeRpcEffect(
           WS_METHODS.projectsWriteFile,
@@ -577,6 +692,10 @@ const WsRpcLayer = WsRpcGroup.toLayer(
         ),
       [WS_METHODS.shellOpenInEditor]: (input) =>
         observeRpcEffect(WS_METHODS.shellOpenInEditor, open.openInEditor(input), {
+          "rpc.aggregate": "workspace",
+        }),
+      [WS_METHODS.shellOpenInProjectApp]: (input) =>
+        observeRpcEffect(WS_METHODS.shellOpenInProjectApp, open.openInProjectApp(input), {
           "rpc.aggregate": "workspace",
         }),
       [WS_METHODS.subscribeGitStatus]: (input) =>
