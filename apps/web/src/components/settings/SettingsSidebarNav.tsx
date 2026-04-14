@@ -1,5 +1,8 @@
-import type { ComponentType } from "react";
-import { ArchiveIcon, ArrowLeftIcon, Settings2Icon } from "lucide-react";
+import {
+  ArchiveIcon as HugeArchiveIcon,
+  ArrowLeft01Icon as HugeArrowLeftIcon,
+  Setting06Icon as HugeSettingIcon,
+} from "../ui/icons";
 import { useNavigate } from "@tanstack/react-router";
 
 import {
@@ -17,10 +20,10 @@ export type SettingsSectionPath = "/settings/general" | "/settings/archived";
 export const SETTINGS_NAV_ITEMS: ReadonlyArray<{
   label: string;
   to: SettingsSectionPath;
-  icon: ComponentType<{ className?: string }>;
+  icon: typeof HugeArchiveIcon;
 }> = [
-  { label: "General", to: "/settings/general", icon: Settings2Icon },
-  { label: "Archive", to: "/settings/archived", icon: ArchiveIcon },
+  { label: "General", to: "/settings/general", icon: HugeSettingIcon },
+  { label: "Archive", to: "/settings/archived", icon: HugeArchiveIcon },
 ];
 
 export function SettingsSidebarNav({ pathname }: { pathname: string }) {
@@ -32,8 +35,8 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
         <SidebarGroup className="px-2 py-3">
           <SidebarMenu>
             {SETTINGS_NAV_ITEMS.map((item) => {
-              const Icon = item.icon;
               const isActive = pathname === item.to;
+              const Icon = item.icon;
               return (
                 <SidebarMenuItem key={item.to}>
                   <SidebarMenuButton
@@ -71,7 +74,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
               className="gap-2 px-2 py-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
               onClick={() => window.history.back()}
             >
-              <ArrowLeftIcon className="size-4" />
+              <HugeArrowLeftIcon className="size-4" />
               <span>Back</span>
             </SidebarMenuButton>
           </SidebarMenuItem>

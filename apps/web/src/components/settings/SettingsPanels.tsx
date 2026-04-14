@@ -8,7 +8,7 @@ import {
   RefreshCwIcon,
   Undo2Icon,
   XIcon,
-} from "lucide-react";
+} from "~/components/ui/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {

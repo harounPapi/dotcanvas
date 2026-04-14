@@ -1,15 +1,15 @@
 import {
-  ArchiveIcon,
-  ArrowUpDownIcon,
-  ChevronRightIcon,
-  GitPullRequestIcon,
-  PlusIcon,
-  SettingsIcon,
-  SquarePenIcon,
-  TerminalIcon,
-  TriangleAlertIcon,
-} from "lucide-react";
-import { ProjectFavicon } from "./ProjectFavicon";
+  Alert01Icon as HugeAlertIcon,
+  ArchiveIcon as HugeArchiveIcon,
+  ArrowRight01Icon as HugeArrowRightIcon,
+  ArrowUpDownIcon as HugeArrowUpDownIcon,
+  FolderIcon as HugeFolderIcon,
+  GitPullRequestIcon as HugeGitPullRequestIcon,
+  PencilEdit02Icon as HugePencilEditIcon,
+  PlusSignIcon as HugePlusSignIcon,
+  Setting06Icon as HugeSettingIcon,
+  TerminalIcon as HugeTerminalIcon,
+} from "./ui/icons";
 import { Logo } from "./branding/Logo";
 import { autoAnimate } from "@formkit/auto-animate";
 import {
@@ -55,6 +55,7 @@ import {
 } from "@t3tools/contracts/settings";
 import { isElectron } from "../env";
 import { APP_STAGE_LABEL, APP_VERSION } from "../branding";
+import { pickThreadViewSearch } from "../diffRouteSearch";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import { isMacPlatform, newCommandId } from "../lib/utils";
 import { useStore } from "../store";
@@ -162,6 +163,11 @@ interface PrStatusIndicator {
 }
 
 type ThreadPr = GitStatusResult["pr"];
+
+function SidebarGlyph(props: { icon: typeof HugeArchiveIcon; className?: string }) {
+  const Icon = props.icon;
+  return <Icon className={props.className} />;
+}
 
 function ThreadStatusLabel({
   status,
@@ -390,7 +396,7 @@ function SidebarThreadRow(props: SidebarThreadRowProps) {
                       props.openPrLink(event, prStatus.url);
                     }}
                   >
-                    <GitPullRequestIcon className="size-3" />
+                    <SidebarGlyph className="size-3" icon={HugeGitPullRequestIcon} />
                   </button>
                 }
               />
@@ -441,7 +447,10 @@ function SidebarThreadRow(props: SidebarThreadRowProps) {
               title={terminalStatus.label}
               className={`inline-flex items-center justify-center ${terminalStatus.colorClass}`}
             >
-              <TerminalIcon className={`size-3 ${terminalStatus.pulse ? "animate-pulse" : ""}`} />
+              <SidebarGlyph
+                className={`size-3 ${terminalStatus.pulse ? "animate-pulse" : ""}`}
+                icon={HugeTerminalIcon}
+              />
             </span>
           )}
           <div className="flex min-w-12 justify-end">
@@ -494,7 +503,7 @@ function SidebarThreadRow(props: SidebarThreadRowProps) {
                       });
                     }}
                   >
-                    <ArchiveIcon className="size-3.5" />
+                    <SidebarGlyph className="size-3.5" icon={HugeArchiveIcon} />
                   </button>
                 </div>
               ) : (
@@ -517,7 +526,7 @@ function SidebarThreadRow(props: SidebarThreadRowProps) {
                             void props.attemptArchiveThread(thread.id);
                           }}
                         >
-                          <ArchiveIcon className="size-3.5" />
+                          <SidebarGlyph className="size-3.5" icon={HugeArchiveIcon} />
                         </button>
                       </div>
                     }
@@ -577,7 +586,7 @@ function ProjectSortMenu({
             <MenuTrigger className="inline-flex size-5 cursor-pointer items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground" />
           }
         >
-          <ArrowUpDownIcon className="size-3.5" />
+          <SidebarGlyph className="size-3.5" icon={HugeArrowUpDownIcon} />
         </TooltipTrigger>
         <TooltipPopup side="right">Sort projects</TooltipPopup>
       </Tooltip>
@@ -1033,6 +1042,7 @@ export default function Sidebar() {
       void navigate({
         to: "/$threadId",
         params: { threadId },
+        search: (previous) => pickThreadViewSearch(previous),
       });
     },
     [
@@ -1054,6 +1064,7 @@ export default function Sidebar() {
       void navigate({
         to: "/$threadId",
         params: { threadId },
+        search: (previous) => pickThreadViewSearch(previous),
       });
     },
     [clearSelection, navigate, selectedThreadIds.size, setSelectionAnchor],
@@ -1455,16 +1466,23 @@ export default function Sidebar() {
                     }`}
                   />
                 </span>
-                <ChevronRightIcon className="absolute inset-0 m-auto size-3.5 text-muted-foreground/70 opacity-0 transition-opacity duration-150 group-hover/project-header:opacity-100" />
+                <SidebarGlyph
+                  className="absolute inset-0 m-auto size-3.5 text-muted-foreground/70 opacity-0 transition-opacity duration-150 group-hover/project-header:opacity-100"
+                  icon={HugeArrowRightIcon}
+                />
               </span>
             ) : (
-              <ChevronRightIcon
+              <SidebarGlyph
                 className={`-ml-0.5 size-3.5 shrink-0 text-muted-foreground/70 transition-transform duration-150 ${
                   project.expanded ? "rotate-90" : ""
                 }`}
+                icon={HugeArrowRightIcon}
               />
             )}
-            <ProjectFavicon cwd={project.cwd} />
+            <SidebarGlyph
+              className="size-3.5 shrink-0 text-muted-foreground/60"
+              icon={HugeFolderIcon}
+            />
             <span className="flex-1 truncate text-xs font-medium text-foreground/90">
               {project.name}
             </span>
@@ -1521,7 +1539,7 @@ export default function Sidebar() {
                     });
                   }}
                 >
-                  <SquarePenIcon className="size-3.5" />
+                  <SidebarGlyph className="size-3.5" icon={HugePencilEditIcon} />
                 </SidebarMenuAction>
               }
             />
@@ -1845,7 +1863,7 @@ export default function Sidebar() {
             {showArm64IntelBuildWarning && arm64IntelBuildWarningDescription ? (
               <SidebarGroup className="px-2 pt-2 pb-0">
                 <Alert variant="warning" className="rounded-2xl border-warning/40 bg-warning/8">
-                  <TriangleAlertIcon />
+                  <SidebarGlyph className="size-4" icon={HugeAlertIcon} />
                   <AlertTitle>Intel build on Apple Silicon</AlertTitle>
                   <AlertDescription>{arm64IntelBuildWarningDescription}</AlertDescription>
                   {desktopUpdateButtonAction !== "none" ? (
@@ -1892,7 +1910,7 @@ export default function Sidebar() {
                         />
                       }
                     >
-                      <PlusIcon className="size-3.5" />
+                      <SidebarGlyph className="size-3.5" icon={HugePlusSignIcon} />
                     </TooltipTrigger>
                     <TooltipPopup side="right">Add project</TooltipPopup>
                   </Tooltip>
@@ -1960,7 +1978,7 @@ export default function Sidebar() {
                   className="gap-2 px-2 py-1.5 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
                   onClick={() => void navigate({ to: "/settings" })}
                 >
-                  <SettingsIcon className="size-3.5" />
+                  <SidebarGlyph className="size-3.5" icon={HugeSettingIcon} />
                   <span className="text-xs">Settings</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>

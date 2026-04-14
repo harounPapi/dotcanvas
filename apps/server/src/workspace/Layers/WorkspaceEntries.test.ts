@@ -68,9 +68,94 @@ const searchWorkspaceEntries = (input: { cwd: string; query: string; limit: numb
     return yield* workspaceEntries.search(input);
   });
 
+const listWorkspaceDirectory = (input: { cwd: string; directoryPath?: string }) =>
+  Effect.gen(function* () {
+    const workspaceEntries = yield* WorkspaceEntries;
+    return yield* workspaceEntries.listDirectory(input);
+  });
+
 it.layer(TestLayer)("WorkspaceEntriesLive", (it) => {
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  describe("listDirectory", () => {
+    it.effect("lists direct child entries and keeps directories ahead of files", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTempDir({ prefix: "t3code-workspace-list-root-" });
+        yield* writeTextFile(cwd, "src/components/Composer.tsx");
+        yield* writeTextFile(cwd, "docs/brief.md");
+        yield* writeTextFile(cwd, "README.md");
+
+        const result = yield* listWorkspaceDirectory({ cwd });
+
+        expect(result).toEqual({
+          entries: [
+            { path: "docs", kind: "directory", parentPath: undefined },
+            { path: "src", kind: "directory", parentPath: undefined },
+            { path: "README.md", kind: "file", parentPath: undefined },
+          ],
+          truncated: false,
+        });
+      }),
+    );
+
+    it.effect("lists nested directory contents relative to the workspace root", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTempDir({ prefix: "t3code-workspace-list-nested-" });
+        yield* writeTextFile(cwd, "src/components/Composer.tsx");
+        yield* writeTextFile(cwd, "src/index.ts");
+
+        const result = yield* listWorkspaceDirectory({
+          cwd,
+          directoryPath: "src",
+        });
+
+        expect(result).toEqual({
+          entries: [
+            { path: "src/components", kind: "directory", parentPath: "src" },
+            { path: "src/index.ts", kind: "file", parentPath: "src" },
+          ],
+          truncated: false,
+        });
+      }),
+    );
+
+    it.effect("fails for missing and non-directory paths", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTempDir({ prefix: "t3code-workspace-list-errors-" });
+        yield* writeTextFile(cwd, "src/index.ts");
+
+        const missingError = yield* listWorkspaceDirectory({
+          cwd,
+          directoryPath: "missing",
+        }).pipe(Effect.flip);
+        expect(missingError.detail).toContain("Directory does not exist: missing");
+
+        const fileError = yield* listWorkspaceDirectory({
+          cwd,
+          directoryPath: "src/index.ts",
+        }).pipe(Effect.flip);
+        expect(fileError.detail).toContain("Path is not a directory: src/index.ts");
+      }),
+    );
+
+    it.effect("filters ignored and gitignored direct child entries", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTempDir({ prefix: "t3code-workspace-list-ignore-", git: true });
+        yield* writeTextFile(cwd, ".gitignore", "ignored.txt\n");
+        yield* writeTextFile(cwd, "src/keep.ts", "export {};");
+        yield* writeTextFile(cwd, "ignored.txt", "ignore me");
+        yield* writeTextFile(cwd, ".convex/local-storage/data.json", "{}");
+
+        const result = yield* listWorkspaceDirectory({ cwd });
+        const paths = result.entries.map((entry) => entry.path);
+
+        expect(paths).toEqual(["src", ".gitignore"]);
+        expect(paths).not.toContain("ignored.txt");
+        expect(paths.some((entryPath) => entryPath.startsWith(".convex"))).toBe(false);
+      }),
+    );
   });
 
   describe("search", () => {

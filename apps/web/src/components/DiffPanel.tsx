@@ -9,7 +9,7 @@ import {
   Columns2Icon,
   Rows3Icon,
   TextWrapIcon,
-} from "lucide-react";
+} from "~/components/ui/icons";
 import {
   type WheelEvent as ReactWheelEvent,
   useCallback,
@@ -24,7 +24,7 @@ import { checkpointDiffQueryOptions } from "~/lib/providerReactQuery";
 import { cn } from "~/lib/utils";
 import { readNativeApi } from "../nativeApi";
 import { resolvePathLinkTarget } from "../terminal-links";
-import { parseDiffRouteSearch, stripDiffSearchParams } from "../diffRouteSearch";
+import { parseChatThreadRouteSearch, stripDiffSearchParams } from "../diffRouteSearch";
 import { useTheme } from "../hooks/useTheme";
 import { buildPatchCacheKey } from "../lib/diffRendering";
 import { resolveDiffThemeName } from "../lib/diffRendering";
@@ -178,7 +178,10 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     strict: false,
     select: (params) => (params.threadId ? ThreadId.makeUnsafe(params.threadId) : null),
   });
-  const diffSearch = useSearch({ strict: false, select: (search) => parseDiffRouteSearch(search) });
+  const diffSearch = useSearch({
+    strict: false,
+    select: (search) => parseChatThreadRouteSearch(search),
+  });
   const diffOpen = diffSearch.diff === "1";
   const activeThreadId = routeThreadId;
   const activeThread = useStore((store) =>

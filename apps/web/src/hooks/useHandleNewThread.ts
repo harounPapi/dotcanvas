@@ -7,6 +7,7 @@ import {
   type DraftThreadState,
   useComposerDraftStore,
 } from "../composerDraftStore";
+import { pickThreadViewSearch } from "../diffRouteSearch";
 import { isDotCanvasProject, isDotCanvasProjectBootstrapping } from "../dotcanvasProject";
 import { newThreadId } from "../lib/utils";
 import { orderItemsByPreferredIds } from "../components/Sidebar.logic";
@@ -85,6 +86,7 @@ export function useHandleNewThread() {
           await navigate({
             to: "/$threadId",
             params: { threadId: storedDraftThread.threadId },
+            search: (previous) => pickThreadViewSearch(previous),
           });
         })();
       }
@@ -122,6 +124,7 @@ export function useHandleNewThread() {
         await navigate({
           to: "/$threadId",
           params: { threadId },
+          search: (previous) => pickThreadViewSearch(previous),
         });
       })();
     },

@@ -25,6 +25,47 @@ const baseRemoteStatus: GitStatusRemoteResult = {
 };
 
 describe("wsRpcClient", () => {
+  it("forwards project directory listing requests through the websocket transport", async () => {
+    const request: WsTransport["request"] = vi.fn(async <TSuccess>() => {
+      return {
+        entries: [
+          {
+            path: "src",
+            kind: "directory" as const,
+          },
+        ],
+        truncated: false,
+      } as TSuccess;
+    }) as WsTransport["request"];
+    const transport = {
+      dispose: vi.fn(async () => undefined),
+      reconnect: vi.fn(async () => undefined),
+      request,
+      requestStream: vi.fn(),
+      subscribe: vi.fn(),
+    } satisfies Pick<
+      WsTransport,
+      "dispose" | "reconnect" | "request" | "requestStream" | "subscribe"
+    >;
+
+    const client = createWsRpcClient(transport as unknown as WsTransport);
+    const result = await client.projects.listDirectory({
+      cwd: "/repo",
+      directoryPath: "src",
+    });
+
+    expect(result).toEqual({
+      entries: [
+        {
+          path: "src",
+          kind: "directory",
+        },
+      ],
+      truncated: false,
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
   it("reduces git status stream events into flat status snapshots", () => {
     const subscribe = vi.fn(<TValue>(_connect: unknown, listener: (value: TValue) => void) => {
       for (const event of [

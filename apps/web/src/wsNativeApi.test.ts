@@ -52,6 +52,7 @@ const rpcClientMock = {
   projects: {
     bootstrapStart: vi.fn(),
     createDirectory: vi.fn(),
+    listDirectory: vi.fn(),
     searchEntries: vi.fn(),
     statPath: vi.fn(),
     writeFile: vi.fn(),
@@ -404,6 +405,40 @@ describe("wsNativeApi", () => {
     expect(rpcClientMock.projects.bootstrapStart).toHaveBeenCalledWith({
       parentPath: "/tmp/projects",
       projectName: "New Project",
+    });
+  });
+
+  it("forwards project directory listing to the project RPC", async () => {
+    rpcClientMock.projects.listDirectory.mockResolvedValue({
+      entries: [
+        {
+          path: "src",
+          kind: "directory",
+        },
+      ],
+      truncated: false,
+    });
+    const { createWsNativeApi } = await import("./wsNativeApi");
+
+    const api = createWsNativeApi();
+    await expect(
+      api.projects.listDirectory({
+        cwd: "/tmp/project",
+        directoryPath: "src",
+      }),
+    ).resolves.toEqual({
+      entries: [
+        {
+          path: "src",
+          kind: "directory",
+        },
+      ],
+      truncated: false,
+    });
+
+    expect(rpcClientMock.projects.listDirectory).toHaveBeenCalledWith({
+      cwd: "/tmp/project",
+      directoryPath: "src",
     });
   });
 

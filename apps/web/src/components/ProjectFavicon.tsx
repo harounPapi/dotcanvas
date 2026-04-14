@@ -1,4 +1,4 @@
-import { FolderIcon } from "lucide-react";
+import { FolderIcon as HugeFolderIcon } from "~/components/ui/icons";
 import { useState } from "react";
 import { resolveServerUrl } from "~/lib/utils";
 
@@ -17,7 +17,9 @@ export function ProjectFavicon({ cwd, className }: { cwd: string; className?: st
   return (
     <>
       {status !== "loaded" ? (
-        <FolderIcon className={`size-3.5 shrink-0 text-muted-foreground/50 ${className ?? ""}`} />
+        <HugeFolderIcon
+          className={`size-3.5 shrink-0 text-muted-foreground/50 ${className ?? ""}`}
+        />
       ) : null}
       <img
         src={src}

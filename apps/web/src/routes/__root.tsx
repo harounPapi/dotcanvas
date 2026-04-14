@@ -16,6 +16,7 @@ import { Throttler } from "@tanstack/react-pacer";
 
 import { APP_DISPLAY_NAME } from "../branding";
 import { AppSidebarLayout } from "../components/AppSidebarLayout";
+import { pickThreadViewSearch } from "../diffRouteSearch";
 import {
   SlowRpcAckToastCoordinator,
   WebSocketConnectionCoordinator,
@@ -261,6 +262,7 @@ function EventRouter() {
         to: "/$threadId",
         params: { threadId: payload.bootstrapThreadId },
         replace: true,
+        search: (previous) => pickThreadViewSearch(previous),
       });
       handledBootstrapThreadIdRef.current = payload.bootstrapThreadId;
     })().catch(() => undefined);

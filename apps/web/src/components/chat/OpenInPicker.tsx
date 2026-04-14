@@ -9,7 +9,7 @@ import {
   resolveAndPersistPreferredProjectOpenTarget,
   usePreferredProjectOpenTarget,
 } from "../../projectOpenPreferences";
-import { ChevronDownIcon, FolderClosedIcon } from "lucide-react";
+import { ChevronDownIcon, FolderClosedIcon, type AppIconComponent } from "~/components/ui/icons";
 import { Button } from "../ui/button";
 import { Group, GroupSeparator } from "../ui/group";
 import { Menu, MenuItem, MenuPopup, MenuShortcut, MenuTrigger } from "../ui/menu";
@@ -28,7 +28,7 @@ import { readNativeApi } from "~/nativeApi";
 
 type OpenTargetOption = {
   label: string;
-  Icon: Icon;
+  Icon: Icon | AppIconComponent;
   value: EditorId | ProjectAppId;
   kind: "editor" | "project-app";
 };

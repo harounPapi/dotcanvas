@@ -20,19 +20,19 @@ import { type TurnDiffSummary } from "../../types";
 import { summarizeTurnDiffStats } from "../../lib/turnDiffTree";
 import ChatMarkdown from "../ChatMarkdown";
 import {
+  type AppIconComponent,
   BotIcon,
   CheckIcon,
   CircleAlertIcon,
   EyeIcon,
   GlobeIcon,
   HammerIcon,
-  type LucideIcon,
   SquarePenIcon,
   TerminalIcon,
   Undo2Icon,
   WrenchIcon,
   ZapIcon,
-} from "lucide-react";
+} from "~/components/ui/icons";
 import { Button } from "../ui/button";
 import { clamp } from "effect/Number";
 import { buildExpandedImagePreview, ExpandedImagePreview } from "./ExpandedImagePreview";
@@ -746,7 +746,7 @@ const UserMessageBody = memo(function UserMessageBody(props: {
 });
 
 function workToneIcon(tone: TimelineWorkEntry["tone"]): {
-  icon: LucideIcon;
+  icon: AppIconComponent;
   className: string;
 } {
   if (tone === "error") {
@@ -803,7 +803,7 @@ function workEntryRawCommand(
   return rawCommand === workEntry.command.trim() ? null : rawCommand;
 }
 
-function workEntryIcon(workEntry: TimelineWorkEntry): LucideIcon {
+function workEntryIcon(workEntry: TimelineWorkEntry): AppIconComponent {
   if (workEntry.requestKind === "command") return TerminalIcon;
   if (workEntry.requestKind === "file-read") return EyeIcon;
   if (workEntry.requestKind === "file-change") return SquarePenIcon;

@@ -1,9 +1,22 @@
 import { TurnId } from "@t3tools/contracts";
 
-export interface DiffRouteSearch {
+export type ThreadViewMode = "agent" | "room";
+
+export const DEFAULT_THREAD_VIEW_MODE: ThreadViewMode = "agent";
+
+export interface ChatThreadRouteSearch {
+  view?: ThreadViewMode | undefined;
   diff?: "1" | undefined;
   diffTurnId?: TurnId | undefined;
   diffFilePath?: string | undefined;
+}
+
+export interface ParsedChatThreadRouteSearch extends Omit<ChatThreadRouteSearch, "view"> {
+  view: ThreadViewMode;
+}
+
+function isThreadViewMode(value: unknown): value is ThreadViewMode {
+  return value === "agent" || value === "room";
 }
 
 function isDiffOpenValue(value: unknown): boolean {
@@ -25,15 +38,36 @@ export function stripDiffSearchParams<T extends Record<string, unknown>>(
   return rest as Omit<T, "diff" | "diffTurnId" | "diffFilePath">;
 }
 
-export function parseDiffRouteSearch(search: Record<string, unknown>): DiffRouteSearch {
+export function pickThreadViewSearch(
+  search: Record<string, unknown>,
+): Partial<Pick<ChatThreadRouteSearch, "view">> {
+  return isThreadViewMode(search.view) ? { view: search.view } : {};
+}
+
+export function validateChatThreadRouteSearch(
+  search: Record<string, unknown>,
+): ChatThreadRouteSearch {
+  const view = isThreadViewMode(search.view) ? search.view : undefined;
   const diff = isDiffOpenValue(search.diff) ? "1" : undefined;
   const diffTurnIdRaw = diff ? normalizeSearchString(search.diffTurnId) : undefined;
   const diffTurnId = diffTurnIdRaw ? TurnId.makeUnsafe(diffTurnIdRaw) : undefined;
   const diffFilePath = diff && diffTurnId ? normalizeSearchString(search.diffFilePath) : undefined;
 
   return {
+    ...(view ? { view } : {}),
     ...(diff ? { diff } : {}),
     ...(diffTurnId ? { diffTurnId } : {}),
     ...(diffFilePath ? { diffFilePath } : {}),
+  };
+}
+
+export function parseChatThreadRouteSearch(
+  search: Record<string, unknown>,
+): ParsedChatThreadRouteSearch {
+  const parsed = validateChatThreadRouteSearch(search);
+
+  return {
+    ...parsed,
+    view: parsed.view ?? DEFAULT_THREAD_VIEW_MODE,
   };
 }

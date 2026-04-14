@@ -494,25 +494,6 @@ function withProjectScripts(
   };
 }
 
-function setDraftThreadWithoutWorktree(): void {
-  useComposerDraftStore.setState({
-    draftThreadsByThreadId: {
-      [THREAD_ID]: {
-        projectId: PROJECT_ID,
-        createdAt: NOW_ISO,
-        runtimeMode: "full-access",
-        interactionMode: "default",
-        branch: null,
-        worktreePath: null,
-        envMode: "local",
-      },
-    },
-    projectDraftThreadIdByProjectId: {
-      [PROJECT_ID]: THREAD_ID,
-    },
-  });
-}
-
 function createSnapshotWithLongProposedPlan(): OrchestrationReadModel {
   const snapshot = createSnapshotForTargetUser({
     targetMessageId: "msg-user-plan-target" as MessageId,
@@ -712,6 +693,12 @@ function resolveWsRpc(body: NormalizedWsRpcRequestBody): unknown {
       truncated: false,
     };
   }
+  if (tag === WS_METHODS.projectsListDirectory) {
+    return {
+      entries: [],
+      truncated: false,
+    };
+  }
   if (tag === WS_METHODS.shellOpenInEditor) {
     return null;
   }
@@ -873,6 +860,24 @@ async function waitForButtonContainingText(text: string): Promise<HTMLButtonElem
   return waitForElement(
     () => findButtonContainingText(text),
     `Unable to find button containing "${text}".`,
+  );
+}
+
+async function waitForSurfaceToggleButton(label: "Agent" | "Room"): Promise<HTMLButtonElement> {
+  return waitForButtonByText(label);
+}
+
+async function waitForAgentViewSection(): Promise<HTMLElement> {
+  return waitForElement(
+    () => document.querySelector<HTMLElement>('[aria-label="Agent view"]'),
+    "Unable to find Agent view section.",
+  );
+}
+
+async function waitForRoomViewSection(): Promise<HTMLElement> {
+  return waitForElement(
+    () => document.querySelector<HTMLElement>('[aria-label="Room view"]'),
+    "Unable to find Room view section.",
   );
 }
 
@@ -1059,6 +1064,7 @@ async function measureUserRow(options: {
 async function mountChatView(options: {
   viewport: ViewportSpec;
   snapshot: OrchestrationReadModel;
+  initialEntry?: string;
   configureFixture?: (fixture: TestFixture) => void;
   resolveRpc?: (body: NormalizedWsRpcRequestBody) => unknown | undefined;
 }): Promise<MountedChatView> {
@@ -1080,7 +1086,7 @@ async function mountChatView(options: {
 
   const router = getRouter(
     createMemoryHistory({
-      initialEntries: [`/${THREAD_ID}`],
+      initialEntries: [options.initialEntry ?? `/${THREAD_ID}`],
     }),
   );
 
@@ -1387,46 +1393,301 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
-  it("opens the project cwd for draft threads without a worktree path", async () => {
-    setDraftThreadWithoutWorktree();
-
+  it("renders the agent surface by default with breadcrumb header and no legacy header actions", async () => {
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,
-      snapshot: createDraftOnlySnapshot(),
-      configureFixture: (nextFixture) => {
-        nextFixture.serverConfig = {
-          ...nextFixture.serverConfig,
-          availableEditors: ["vscode"],
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-agent-view-target" as MessageId,
+        targetText: "agent view target",
+      }),
+    });
+
+    try {
+      const agentView = await waitForAgentViewSection();
+      const roomView = await waitForRoomViewSection();
+      const breadcrumbRoot = await waitForElement(
+        () => document.querySelector<HTMLElement>('[data-thread-breadcrumbs="true"]'),
+        "Unable to find thread breadcrumbs.",
+      );
+      const switcher = await waitForElement(
+        () => document.querySelector<HTMLElement>('[data-thread-surface-switcher="true"]'),
+        "Unable to find thread surface switcher.",
+      );
+
+      await vi.waitFor(
+        () => {
+          expect(agentView.hidden).toBe(false);
+          expect(roomView.hidden).toBe(true);
+          expect(breadcrumbRoot.textContent).toContain("Project");
+          expect(breadcrumbRoot.textContent).toContain("Browser test thread");
+          expect(switcher.textContent).toContain("Agent");
+          expect(switcher.textContent).toContain("Room");
+          expect(document.querySelector('button[aria-label="Toggle terminal drawer"]')).toBeNull();
+          expect(document.querySelector('button[aria-label="Toggle diff panel"]')).toBeNull();
+          expect(document.querySelector('button[aria-label="Copy options"]')).toBeNull();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("renders the room surface when view=room is set on first load", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-view-target" as MessageId,
+        targetText: "room view target",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+    });
+
+    try {
+      const agentView = await waitForAgentViewSection();
+      const roomView = await waitForRoomViewSection();
+
+      await vi.waitFor(
+        () => {
+          expect(agentView.hidden).toBe(true);
+          expect(roomView.hidden).toBe(false);
+          expect(document.body.textContent).toContain("ROOM FOLDER");
+          expect(
+            document.querySelector('button[aria-label="Resize room folder sidebar"]'),
+          ).not.toBeNull();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("renders workspace root entries in the room sidebar", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-tree-root" as MessageId,
+        targetText: "room tree root",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag !== WS_METHODS.projectsListDirectory) {
+          return undefined;
+        }
+        if (body.directoryPath !== undefined) {
+          return {
+            entries: [],
+            truncated: false,
+          };
+        }
+        return {
+          entries: [
+            { path: "src", kind: "directory" as const },
+            { path: "README.md", kind: "file" as const },
+          ],
+          truncated: false,
         };
       },
     });
 
     try {
-      await waitForServerConfigToApply();
-      const openButton = await waitForElement(
-        () =>
-          Array.from(document.querySelectorAll("button")).find(
-            (button) => button.textContent?.trim() === "Open",
-          ) as HTMLButtonElement | null,
-        "Unable to find Open button.",
+      await vi.waitFor(
+        () => {
+          const roomView = document.querySelector<HTMLElement>('[aria-label="Room view"]');
+          expect(roomView?.hidden).toBe(false);
+          expect(document.body.textContent).toContain("src");
+          expect(document.body.textContent).toContain("README.md");
+        },
+        { timeout: 8_000, interval: 16 },
       );
-      await vi.waitFor(() => {
-        expect(openButton.disabled).toBe(false);
-      });
-      openButton.click();
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("loads nested room tree entries when a folder is expanded", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-tree-expand" as MessageId,
+        targetText: "room tree expand",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag !== WS_METHODS.projectsListDirectory) {
+          return undefined;
+        }
+        if (body.directoryPath === "src") {
+          return {
+            entries: [
+              { path: "src/components", kind: "directory" as const, parentPath: "src" },
+              { path: "src/index.ts", kind: "file" as const, parentPath: "src" },
+            ],
+            truncated: false,
+          };
+        }
+        return {
+          entries: [
+            { path: "src", kind: "directory" as const },
+            { path: "package.json", kind: "file" as const },
+          ],
+          truncated: false,
+        };
+      },
+    });
+
+    try {
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("src");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const expandButton = document.querySelector<HTMLButtonElement>(
+        'button[aria-label="Expand src"]',
+      );
+      expect(expandButton).not.toBeNull();
+      expandButton?.click();
 
       await vi.waitFor(
         () => {
-          const openRequest = wsRequests.find(
-            (request) => request._tag === WS_METHODS.shellOpenInEditor,
-          );
-          expect(openRequest).toMatchObject({
-            _tag: WS_METHODS.shellOpenInEditor,
-            cwd: "/repo/project",
-            editor: "vscode",
-          });
+          expect(document.body.textContent).toContain("components");
+          expect(document.body.textContent).toContain("index.ts");
         },
         { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("uses the project root as the room tree root even when a worktree is present", async () => {
+    const listDirectoryCalls: Array<{ cwd: string; directoryPath?: string }> = [];
+    const snapshot = createSnapshotForTargetUser({
+      targetMessageId: "msg-user-room-tree-worktree" as MessageId,
+      targetText: "room tree worktree",
+    });
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: {
+        ...snapshot,
+        threads: snapshot.threads.map((thread) =>
+          thread.id === THREAD_ID
+            ? Object.assign({}, thread, {
+                worktreePath: "/repo/worktrees/feature-room",
+              })
+            : thread,
+        ),
+      },
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag !== WS_METHODS.projectsListDirectory) {
+          return undefined;
+        }
+        listDirectoryCalls.push({
+          cwd: typeof body.cwd === "string" ? body.cwd : "",
+          ...(typeof body.directoryPath === "string" ? { directoryPath: body.directoryPath } : {}),
+        });
+        return {
+          entries: [{ path: "src", kind: "directory" as const }],
+          truncated: false,
+        };
+      },
+    });
+
+    try {
+      await vi.waitFor(
+        () => {
+          expect(listDirectoryCalls).toContainEqual({
+            cwd: "/repo/project",
+          });
+          expect(document.body.textContent).toContain("src");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("preserves unsent composer draft text when switching between agent and room", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-draft-preserve-target" as MessageId,
+        targetText: "draft preserve target",
+      }),
+    });
+
+    try {
+      await waitForComposerEditor();
+      await page.getByTestId("composer-editor").fill("keep this draft");
+
+      const roomButton = await waitForSurfaceToggleButton("Room");
+      roomButton.click();
+
+      const roomView = await waitForRoomViewSection();
+      await vi.waitFor(
+        () => {
+          expect(roomView.hidden).toBe(false);
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const agentButton = await waitForSurfaceToggleButton("Agent");
+      agentButton.click();
+
+      const agentView = await waitForAgentViewSection();
+      await vi.waitFor(
+        () => {
+          const composerEditor = document.querySelector<HTMLElement>(
+            '[data-testid="composer-editor"]',
+          );
+          expect(agentView.hidden).toBe(false);
+          expect(composerEditor?.textContent).toContain("keep this draft");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("hides the diff surface in room view and restores it when returning to agent", async () => {
+    const mounted = await mountChatView({
+      viewport: WIDE_FOOTER_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-diff-restore-target" as MessageId,
+        targetText: "diff restore target",
+      }),
+      initialEntry: `/${THREAD_ID}?diff=1`,
+    });
+
+    try {
+      await waitForElement(
+        () => document.querySelector('button[aria-label="Stacked diff view"]'),
+        "Unable to find diff view toggle.",
+      );
+
+      const roomButton = await waitForSurfaceToggleButton("Room");
+      roomButton.click();
+
+      await vi.waitFor(
+        () => {
+          expect(document.querySelector('button[aria-label="Stacked diff view"]')).toBeNull();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const agentButton = await waitForSurfaceToggleButton("Agent");
+      agentButton.click();
+
+      await waitForElement(
+        () => document.querySelector('button[aria-label="Stacked diff view"]'),
+        "Unable to find restored diff view toggle.",
       );
     } finally {
       await mounted.cleanup();
@@ -1493,559 +1754,6 @@ describe("ChatView timeline estimator parity (full app)", () => {
             },
           });
           expect(openRequest?.env?.T3CODE_WORKTREE_PATH).toBeUndefined();
-        },
-        { timeout: 8_000, interval: 16 },
-      );
-    } finally {
-      await mounted.cleanup();
-    }
-  });
-
-  it("opens the project cwd with VS Code Insiders when it is the only available editor", async () => {
-    setDraftThreadWithoutWorktree();
-
-    const mounted = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
-      snapshot: createDraftOnlySnapshot(),
-      configureFixture: (nextFixture) => {
-        nextFixture.serverConfig = {
-          ...nextFixture.serverConfig,
-          availableEditors: ["vscode-insiders"],
-        };
-      },
-    });
-
-    try {
-      await waitForServerConfigToApply();
-      const openButton = await waitForElement(
-        () =>
-          Array.from(document.querySelectorAll("button")).find(
-            (button) => button.textContent?.trim() === "Open",
-          ) as HTMLButtonElement | null,
-        "Unable to find Open button.",
-      );
-      await vi.waitFor(() => {
-        expect(openButton.disabled).toBe(false);
-      });
-      openButton.click();
-
-      await vi.waitFor(
-        () => {
-          const openRequest = wsRequests.find(
-            (request) => request._tag === WS_METHODS.shellOpenInEditor,
-          );
-          expect(openRequest).toMatchObject({
-            _tag: WS_METHODS.shellOpenInEditor,
-            cwd: "/repo/project",
-            editor: "vscode-insiders",
-          });
-        },
-        { timeout: 8_000, interval: 16 },
-      );
-    } finally {
-      await mounted.cleanup();
-    }
-  });
-
-  it("opens the project cwd with Trae when it is the only available editor", async () => {
-    setDraftThreadWithoutWorktree();
-
-    const mounted = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
-      snapshot: createDraftOnlySnapshot(),
-      configureFixture: (nextFixture) => {
-        nextFixture.serverConfig = {
-          ...nextFixture.serverConfig,
-          availableEditors: ["trae"],
-        };
-      },
-    });
-
-    try {
-      await waitForServerConfigToApply();
-      const openButton = await waitForElement(
-        () =>
-          Array.from(document.querySelectorAll("button")).find(
-            (button) => button.textContent?.trim() === "Open",
-          ) as HTMLButtonElement | null,
-        "Unable to find Open button.",
-      );
-      await vi.waitFor(() => {
-        expect(openButton.disabled).toBe(false);
-      });
-      openButton.click();
-
-      await vi.waitFor(
-        () => {
-          const openRequest = wsRequests.find(
-            (request) => request._tag === WS_METHODS.shellOpenInEditor,
-          );
-          expect(openRequest).toMatchObject({
-            _tag: WS_METHODS.shellOpenInEditor,
-            cwd: "/repo/project",
-            editor: "trae",
-          });
-        },
-        { timeout: 8_000, interval: 16 },
-      );
-    } finally {
-      await mounted.cleanup();
-    }
-  });
-
-  it("filters the open picker menu and opens VSCodium from the menu", async () => {
-    setDraftThreadWithoutWorktree();
-
-    const mounted = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
-      snapshot: createDraftOnlySnapshot(),
-      configureFixture: (nextFixture) => {
-        nextFixture.serverConfig = {
-          ...nextFixture.serverConfig,
-          availableEditors: ["vscode-insiders", "vscodium"],
-        };
-      },
-    });
-
-    try {
-      await waitForServerConfigToApply();
-      const menuButton = await waitForElement(
-        () => document.querySelector('button[aria-label="Copy options"]'),
-        "Unable to find Open picker button.",
-      );
-      (menuButton as HTMLButtonElement).click();
-
-      await waitForElement(
-        () =>
-          Array.from(document.querySelectorAll('[data-slot="menu-item"]')).find((item) =>
-            item.textContent?.includes("VS Code Insiders"),
-          ) ?? null,
-        "Unable to find VS Code Insiders menu item.",
-      );
-
-      expect(
-        Array.from(document.querySelectorAll('[data-slot="menu-item"]')).some((item) =>
-          item.textContent?.includes("Zed"),
-        ),
-      ).toBe(false);
-
-      const vscodiumItem = await waitForElement(
-        () =>
-          Array.from(document.querySelectorAll('[data-slot="menu-item"]')).find((item) =>
-            item.textContent?.includes("VSCodium"),
-          ) ?? null,
-        "Unable to find VSCodium menu item.",
-      );
-      (vscodiumItem as HTMLElement).click();
-
-      await vi.waitFor(
-        () => {
-          const openRequest = wsRequests.find(
-            (request) => request._tag === WS_METHODS.shellOpenInEditor,
-          );
-          expect(openRequest).toMatchObject({
-            _tag: WS_METHODS.shellOpenInEditor,
-            cwd: "/repo/project",
-            editor: "vscodium",
-          });
-        },
-        { timeout: 8_000, interval: 16 },
-      );
-    } finally {
-      await mounted.cleanup();
-    }
-  });
-
-  it("shows Obsidian in the open picker without changing the default primary open target", async () => {
-    setDraftThreadWithoutWorktree();
-
-    const mounted = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
-      snapshot: createDraftOnlySnapshot(),
-      configureFixture: (nextFixture) => {
-        nextFixture.serverConfig = {
-          ...nextFixture.serverConfig,
-          availableEditors: ["vscode"],
-          availableProjectApps: ["obsidian"],
-        };
-      },
-    });
-
-    try {
-      await waitForServerConfigToApply();
-      const menuButton = await waitForElement(
-        () => document.querySelector('button[aria-label="Copy options"]'),
-        "Unable to find Open picker button.",
-      );
-      (menuButton as HTMLButtonElement).click();
-
-      await waitForElement(
-        () =>
-          Array.from(document.querySelectorAll('[data-slot="menu-item"]')).find((item) =>
-            item.textContent?.includes("Obsidian"),
-          ) ?? null,
-        "Unable to find Obsidian menu item.",
-      );
-
-      const openButton = await waitForElement(
-        () =>
-          Array.from(document.querySelectorAll("button")).find(
-            (button) => button.textContent?.trim() === "Open",
-          ) as HTMLButtonElement | null,
-        "Unable to find Open button.",
-      );
-      openButton.click();
-
-      await vi.waitFor(
-        () => {
-          const openRequest = wsRequests.find(
-            (request) => request._tag === WS_METHODS.shellOpenInEditor,
-          );
-          expect(openRequest).toMatchObject({
-            _tag: WS_METHODS.shellOpenInEditor,
-            cwd: "/repo/project",
-            editor: "vscode",
-          });
-        },
-        { timeout: 8_000, interval: 16 },
-      );
-    } finally {
-      await mounted.cleanup();
-    }
-  });
-
-  it("opens Obsidian from the header picker menu", async () => {
-    setDraftThreadWithoutWorktree();
-
-    const mounted = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
-      snapshot: createDraftOnlySnapshot(),
-      configureFixture: (nextFixture) => {
-        nextFixture.serverConfig = {
-          ...nextFixture.serverConfig,
-          availableEditors: ["vscode"],
-          availableProjectApps: ["obsidian"],
-        };
-      },
-    });
-
-    try {
-      await waitForServerConfigToApply();
-      const menuButton = await waitForElement(
-        () => document.querySelector('button[aria-label="Copy options"]'),
-        "Unable to find Open picker button.",
-      );
-      (menuButton as HTMLButtonElement).click();
-
-      const obsidianItem = await waitForElement(
-        () =>
-          Array.from(document.querySelectorAll('[data-slot="menu-item"]')).find((item) =>
-            item.textContent?.includes("Obsidian"),
-          ) ?? null,
-        "Unable to find Obsidian menu item.",
-      );
-      (obsidianItem as HTMLElement).click();
-
-      await vi.waitFor(
-        () => {
-          const openRequest = wsRequests.find(
-            (request) => request._tag === WS_METHODS.shellOpenInProjectApp,
-          );
-          expect(openRequest).toMatchObject({
-            _tag: WS_METHODS.shellOpenInProjectApp,
-            cwd: "/repo/project",
-            app: "obsidian",
-          });
-        },
-        { timeout: 8_000, interval: 16 },
-      );
-
-      await vi.waitFor(() => {
-        expect(localStorage.getItem("t3code:last-project-open-target")).toBe(
-          JSON.stringify("obsidian"),
-        );
-      });
-    } finally {
-      await mounted.cleanup();
-    }
-  });
-
-  it("reuses the saved header project target without changing the global editor preference", async () => {
-    localStorage.setItem("t3code:last-editor", JSON.stringify("vscode"));
-    setDraftThreadWithoutWorktree();
-
-    const firstMount = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
-      snapshot: createDraftOnlySnapshot(),
-      configureFixture: (nextFixture) => {
-        nextFixture.serverConfig = {
-          ...nextFixture.serverConfig,
-          availableEditors: ["vscode"],
-          availableProjectApps: ["obsidian"],
-        };
-      },
-    });
-
-    try {
-      await waitForServerConfigToApply();
-      const menuButton = await waitForElement(
-        () => document.querySelector('button[aria-label="Copy options"]'),
-        "Unable to find Open picker button.",
-      );
-      (menuButton as HTMLButtonElement).click();
-
-      const obsidianItem = await waitForElement(
-        () =>
-          Array.from(document.querySelectorAll('[data-slot="menu-item"]')).find((item) =>
-            item.textContent?.includes("Obsidian"),
-          ) ?? null,
-        "Unable to find Obsidian menu item.",
-      );
-      (obsidianItem as HTMLElement).click();
-
-      await vi.waitFor(
-        () => {
-          const projectAppRequests = wsRequests.filter(
-            (request) => request._tag === WS_METHODS.shellOpenInProjectApp,
-          );
-          expect(projectAppRequests).toHaveLength(1);
-        },
-        { timeout: 8_000, interval: 16 },
-      );
-
-      await vi.waitFor(() => {
-        expect(localStorage.getItem("t3code:last-project-open-target")).toBe(
-          JSON.stringify("obsidian"),
-        );
-      });
-    } finally {
-      await firstMount.cleanup();
-    }
-
-    wsRequests.length = 0;
-
-    const secondMount = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
-      snapshot: createDraftOnlySnapshot(),
-      configureFixture: (nextFixture) => {
-        nextFixture.serverConfig = {
-          ...nextFixture.serverConfig,
-          availableEditors: ["vscode"],
-          availableProjectApps: ["obsidian"],
-        };
-      },
-    });
-
-    try {
-      await waitForServerConfigToApply();
-      const openButton = await waitForElement(
-        () =>
-          Array.from(document.querySelectorAll("button")).find(
-            (button) => button.textContent?.trim() === "Open",
-          ) as HTMLButtonElement | null,
-        "Unable to find Open button.",
-      );
-      openButton.click();
-
-      await vi.waitFor(
-        () => {
-          const projectAppRequests = wsRequests.filter(
-            (request) => request._tag === WS_METHODS.shellOpenInProjectApp,
-          );
-          expect(projectAppRequests).toHaveLength(1);
-          expect(projectAppRequests[0]).toMatchObject({
-            _tag: WS_METHODS.shellOpenInProjectApp,
-            cwd: "/repo/project",
-            app: "obsidian",
-          });
-        },
-        { timeout: 8_000, interval: 16 },
-      );
-
-      expect(localStorage.getItem("t3code:last-editor")).toBe(JSON.stringify("vscode"));
-    } finally {
-      await secondMount.cleanup();
-    }
-  });
-
-  it("falls back to the first installed editor when the stored favorite is unavailable", async () => {
-    localStorage.setItem("t3code:last-editor", JSON.stringify("vscodium"));
-    setDraftThreadWithoutWorktree();
-
-    const mounted = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
-      snapshot: createDraftOnlySnapshot(),
-      configureFixture: (nextFixture) => {
-        nextFixture.serverConfig = {
-          ...nextFixture.serverConfig,
-          availableEditors: ["vscode-insiders"],
-        };
-      },
-    });
-
-    try {
-      await waitForServerConfigToApply();
-      const openButton = await waitForElement(
-        () =>
-          Array.from(document.querySelectorAll("button")).find(
-            (button) => button.textContent?.trim() === "Open",
-          ) as HTMLButtonElement | null,
-        "Unable to find Open button.",
-      );
-      await vi.waitFor(() => {
-        expect(openButton.disabled).toBe(false);
-      });
-      openButton.click();
-
-      await vi.waitFor(
-        () => {
-          const openRequest = wsRequests.find(
-            (request) => request._tag === WS_METHODS.shellOpenInEditor,
-          );
-          expect(openRequest).toMatchObject({
-            _tag: WS_METHODS.shellOpenInEditor,
-            cwd: "/repo/project",
-            editor: "vscode-insiders",
-          });
-        },
-        { timeout: 8_000, interval: 16 },
-      );
-    } finally {
-      await mounted.cleanup();
-    }
-  });
-
-  it("runs project scripts from local draft threads at the project cwd", async () => {
-    useComposerDraftStore.setState({
-      draftThreadsByThreadId: {
-        [THREAD_ID]: {
-          projectId: PROJECT_ID,
-          createdAt: NOW_ISO,
-          runtimeMode: "full-access",
-          interactionMode: "default",
-          branch: null,
-          worktreePath: null,
-          envMode: "local",
-        },
-      },
-      projectDraftThreadIdByProjectId: {
-        [PROJECT_ID]: THREAD_ID,
-      },
-    });
-
-    const mounted = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
-      snapshot: withProjectScripts(createDraftOnlySnapshot(), [
-        {
-          id: "lint",
-          name: "Lint",
-          command: "bun run lint",
-          icon: "lint",
-          runOnWorktreeCreate: false,
-        },
-      ]),
-    });
-
-    try {
-      const runButton = await waitForElement(
-        () =>
-          Array.from(document.querySelectorAll("button")).find(
-            (button) => button.title === "Run Lint",
-          ) as HTMLButtonElement | null,
-        "Unable to find Run Lint button.",
-      );
-      runButton.click();
-
-      await vi.waitFor(
-        () => {
-          const openRequest = wsRequests.find(
-            (request) => request._tag === WS_METHODS.terminalOpen,
-          );
-          expect(openRequest).toMatchObject({
-            _tag: WS_METHODS.terminalOpen,
-            threadId: THREAD_ID,
-            cwd: "/repo/project",
-            env: {
-              T3CODE_PROJECT_ROOT: "/repo/project",
-            },
-          });
-        },
-        { timeout: 8_000, interval: 16 },
-      );
-
-      await vi.waitFor(
-        () => {
-          const writeRequest = wsRequests.find(
-            (request) => request._tag === WS_METHODS.terminalWrite,
-          );
-          expect(writeRequest).toMatchObject({
-            _tag: WS_METHODS.terminalWrite,
-            threadId: THREAD_ID,
-            data: "bun run lint\r",
-          });
-        },
-        { timeout: 8_000, interval: 16 },
-      );
-    } finally {
-      await mounted.cleanup();
-    }
-  });
-
-  it("runs project scripts from worktree draft threads at the worktree cwd", async () => {
-    useComposerDraftStore.setState({
-      draftThreadsByThreadId: {
-        [THREAD_ID]: {
-          projectId: PROJECT_ID,
-          createdAt: NOW_ISO,
-          runtimeMode: "full-access",
-          interactionMode: "default",
-          branch: "feature/draft",
-          worktreePath: "/repo/worktrees/feature-draft",
-          envMode: "worktree",
-        },
-      },
-      projectDraftThreadIdByProjectId: {
-        [PROJECT_ID]: THREAD_ID,
-      },
-    });
-
-    const mounted = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
-      snapshot: withProjectScripts(createDraftOnlySnapshot(), [
-        {
-          id: "test",
-          name: "Test",
-          command: "bun run test",
-          icon: "test",
-          runOnWorktreeCreate: false,
-        },
-      ]),
-    });
-
-    try {
-      const runButton = await waitForElement(
-        () =>
-          Array.from(document.querySelectorAll("button")).find(
-            (button) => button.title === "Run Test",
-          ) as HTMLButtonElement | null,
-        "Unable to find Run Test button.",
-      );
-      runButton.click();
-
-      await vi.waitFor(
-        () => {
-          const openRequest = wsRequests.find(
-            (request) => request._tag === WS_METHODS.terminalOpen,
-          );
-          expect(openRequest).toMatchObject({
-            _tag: WS_METHODS.terminalOpen,
-            threadId: THREAD_ID,
-            cwd: "/repo/worktrees/feature-draft",
-            env: {
-              T3CODE_PROJECT_ROOT: "/repo/project",
-              T3CODE_WORKTREE_PATH: "/repo/worktrees/feature-draft",
-            },
-          });
         },
         { timeout: 8_000, interval: 16 },
       );

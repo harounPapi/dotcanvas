@@ -29,6 +29,8 @@ import type {
   ProjectBootstrapStartResult,
   ProjectCreateDirectoryInput,
   ProjectCreateDirectoryResult,
+  ProjectListDirectoryInput,
+  ProjectListDirectoryResult,
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
   ProjectStatPathInput,
@@ -153,6 +155,7 @@ export interface NativeApi {
   projects: {
     bootstrapStart: (input: ProjectBootstrapStartInput) => Promise<ProjectBootstrapStartResult>;
     createDirectory: (input: ProjectCreateDirectoryInput) => Promise<ProjectCreateDirectoryResult>;
+    listDirectory: (input: ProjectListDirectoryInput) => Promise<ProjectListDirectoryResult>;
     searchEntries: (input: ProjectSearchEntriesInput) => Promise<ProjectSearchEntriesResult>;
     statPath: (input: ProjectStatPathInput) => Promise<ProjectStatPathResult>;
     writeFile: (input: ProjectWriteFileInput) => Promise<ProjectWriteFileResult>;
