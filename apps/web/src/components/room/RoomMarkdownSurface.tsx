@@ -5,12 +5,10 @@ import { markdown } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { useTodoListElement, useTodoListElementState } from "@platejs/list/react";
-import { useEquationInput } from "@platejs/math/react";
-import katex from "katex";
+import { useEquationElement, useEquationInput } from "@platejs/math/react";
 import mermaid from "mermaid";
 import {
   Plate,
-  PlateContent,
   PlateElement,
   PlateLeaf,
   useEditorRef,
@@ -33,17 +31,27 @@ import {
   useState,
 } from "react";
 
+import { Button } from "~/components/ui/button";
+import { CheckIcon, CopyIcon } from "~/components/ui/icons";
+import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
+import { Textarea } from "~/components/ui/textarea";
 import { cn } from "~/lib/utils";
+import { Editor, EditorContainer } from "~/components/ui/editor";
 
 import {
-  ROOM_MARKDOWN_PLUGINS,
   ROOM_HTML_BLOCK_ELEMENT_TYPE,
-  ROOM_MERMAID_ELEMENT_TYPE,
+  ROOM_MARKDOWN_PLUGINS,
   auditRoomMarkdownDocument,
   deserializeRoomMarkdown,
   roomMarkdownFallbackMessage,
   serializeRoomMarkdown,
 } from "./roomMarkdownDocument";
+import {
+  RoomFixedToolbar,
+  RoomFixedToolbarButtons,
+  RoomFloatingToolbar,
+  RoomFloatingToolbarButtons,
+} from "./roomPlateToolbar";
 
 type RoomMarkdownEditorContextValue = {
   resolvedTheme: "light" | "dark";
@@ -57,17 +65,6 @@ function useRoomMarkdownEditorContext(): RoomMarkdownEditorContextValue {
     throw new Error("RoomMarkdownSurface components must be used within RoomMarkdownSurface.");
   }
   return value;
-}
-
-function renderKatexPreview(expression: string, displayMode: boolean): string {
-  try {
-    return katex.renderToString(expression, {
-      displayMode,
-      throwOnError: false,
-    });
-  } catch {
-    return expression;
-  }
 }
 
 function RoomHeadingElement(props: PlateElementProps & { level: 1 | 2 | 3 | 4 | 5 | 6 }) {
@@ -148,15 +145,12 @@ function RoomParagraphElement(props: PlateElementProps) {
 }
 
 function RoomBlockquoteElement(props: PlateElementProps) {
-  const { children } = props;
   return (
     <PlateElement
       {...props}
       as="blockquote"
       className="my-4 border-l border-border/80 pl-4 italic text-foreground/72"
-    >
-      {children}
-    </PlateElement>
+    />
   );
 }
 
@@ -188,7 +182,7 @@ function RoomInlineCodeLeaf(props: PlateLeafProps) {
   return (
     <PlateLeaf
       as="code"
-      className="rounded bg-muted px-1.5 py-0.5 text-[0.92em] text-foreground"
+      className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.92em] text-foreground"
       {...props}
     />
   );
@@ -200,91 +194,165 @@ function RoomLinkElement(props: PlateElementProps) {
     typeof (element as { url?: string }).url === "string"
       ? (element as { url?: string }).url
       : undefined;
-  const linkAttributes = href ? { href } : {};
+
   return (
     <PlateElement
       {...props}
       as="a"
       className="cursor-text text-primary underline decoration-primary/35 underline-offset-4"
-      {...linkAttributes}
+      {...(href ? { href } : {})}
     >
       {children}
     </PlateElement>
   );
 }
 
-function readCodeBlockText(element: {
-  children?: Array<{ children?: Array<{ text?: string }> }>;
-}): string {
+function readCodeBlockText(element: { children?: Array<{ children?: Array<{ text?: string }> }> }) {
   return (element.children ?? [])
     .map((line) => (line.children ?? []).map((leaf) => leaf.text ?? "").join(""))
     .join("\n");
 }
 
-function RoomCodeBlockElement(props: PlateElementProps) {
-  const { children, element } = props;
-  const { resolvedTheme } = useRoomMarkdownEditorContext();
-  const editor = useEditorRef();
-  const path = usePath();
-  const isFocused = useFocused();
-  const isSelected = useSelected();
-  const language =
-    typeof (element as { lang?: string }).lang === "string"
-      ? (element as { lang?: string }).lang
-      : "";
-  const isMermaidBlock = language === "mermaid";
-
-  if (isMermaidBlock && !(isFocused && isSelected)) {
-    return (
-      <PlateElement {...props} as="div" className="my-5">
-        <div
-          className="rounded-xl border border-border/70 bg-muted/40 px-4 py-3"
-          contentEditable={false}
-        >
-          <button
-            aria-label="Edit mermaid source"
-            className="block w-full cursor-text text-left"
-            onMouseDown={(event) => {
-              event.preventDefault();
-              editor.tf.select(path);
-            }}
-            type="button"
-          >
-            <RoomMermaidPreview
-              code={readCodeBlockText(
-                element as { children?: Array<{ children?: Array<{ text?: string }> }> },
-              )}
-              resolvedTheme={resolvedTheme}
-            />
-          </button>
-        </div>
-        <span className="hidden">{children}</span>
-      </PlateElement>
-    );
-  }
-
-  return (
-    <PlateElement
-      {...props}
-      as="pre"
-      className="my-4 overflow-x-auto rounded-xl border border-border/70 bg-muted/55 px-4 py-3 font-mono text-[13px] leading-6 text-foreground"
-    >
-      <code>{children}</code>
-    </PlateElement>
-  );
-}
-
 function RoomCodeLineElement(props: PlateElementProps) {
-  const { children } = props;
-  return (
-    <PlateElement {...props} as="span" className="block min-h-6">
-      {children}
-    </PlateElement>
-  );
+  return <PlateElement {...props} as="span" className="block min-h-6" />;
 }
 
 function RoomCodeSyntaxLeaf(props: PlateLeafProps) {
   return <PlateLeaf as="span" {...props} />;
+}
+
+function RoomCopyButton(props: { value: string }) {
+  const { value } = props;
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setCopied(false);
+    }, 2_000);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [copied]);
+
+  return (
+    <Button
+      className="text-muted-foreground hover:text-foreground"
+      contentEditable={false}
+      onClick={() => {
+        void navigator.clipboard.writeText(value);
+        setCopied(true);
+      }}
+      size="icon-xs"
+      type="button"
+      variant="ghost"
+    >
+      <span className="sr-only">Copy code</span>
+      {copied ? <CheckIcon /> : <CopyIcon />}
+    </Button>
+  );
+}
+
+function RoomMermaidPreview(props: { code: string; resolvedTheme: "light" | "dark" }) {
+  const { code, resolvedTheme } = props;
+  const mountRef = useRef<HTMLDivElement>(null);
+  const mermaidId = useId().replaceAll(":", "-");
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    let disposed = false;
+
+    mermaid.initialize({
+      securityLevel: "loose",
+      startOnLoad: false,
+      theme: resolvedTheme === "dark" ? "dark" : "default",
+    });
+
+    void mermaid
+      .render(`room-mermaid-${mermaidId}`, code)
+      .then(({ bindFunctions, svg }) => {
+        if (disposed || !mountRef.current) {
+          return;
+        }
+
+        mountRef.current.innerHTML = svg;
+        bindFunctions?.(mountRef.current);
+        setError(undefined);
+      })
+      .catch((nextError) => {
+        if (disposed) {
+          return;
+        }
+
+        setError(nextError instanceof Error ? nextError.message : "Unable to render Mermaid.");
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, [code, mermaidId, resolvedTheme]);
+
+  if (error) {
+    return <pre className="overflow-x-auto font-mono text-xs text-muted-foreground">{code}</pre>;
+  }
+
+  return <div ref={mountRef} className="room-plate-mermaid-preview min-h-8" />;
+}
+
+function RoomCodeBlockElement(props: PlateElementProps) {
+  const { children, element } = props;
+  const { resolvedTheme } = useRoomMarkdownEditorContext();
+  const editor = useEditorRef() as any;
+  const path = usePath();
+  const isFocused = useFocused();
+  const isSelected = useSelected();
+  const codeText = readCodeBlockText(
+    element as { children?: Array<{ children?: Array<{ text?: string }> }> },
+  );
+  const language = ((element as { lang?: string }).lang ?? "") as string;
+  const showMermaidPreview = language === "mermaid" && !(isFocused && isSelected);
+
+  return (
+    <PlateElement {...props} as="div" className="my-5">
+      <div className="room-plate-code-block relative overflow-hidden rounded-xl border border-border/70 bg-muted/45">
+        <div
+          className="pointer-events-none absolute top-2 right-2 z-10 flex items-center gap-1.5"
+          contentEditable={false}
+        >
+          {language.length > 0 ? (
+            <span className="rounded-full border border-border/70 bg-background/88 px-2 py-0.5 font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase backdrop-blur">
+              {language}
+            </span>
+          ) : null}
+          <div className="pointer-events-auto">
+            <RoomCopyButton value={codeText} />
+          </div>
+        </div>
+
+        {showMermaidPreview ? (
+          <button
+            className="block w-full cursor-text px-4 py-4 text-left"
+            contentEditable={false}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              editor?.tf?.select?.(path, { focus: true });
+            }}
+            type="button"
+          >
+            <RoomMermaidPreview code={codeText} resolvedTheme={resolvedTheme} />
+          </button>
+        ) : (
+          <pre className="overflow-x-auto px-4 py-4 pr-16 font-mono text-[13px] leading-6">
+            <code>{children}</code>
+          </pre>
+        )}
+      </div>
+    </PlateElement>
+  );
 }
 
 function htmlPreviewText(value: string): string {
@@ -304,12 +372,9 @@ function RoomHtmlBlockElement(props: PlateElementProps) {
   const { children, element } = props;
   const editor = useEditorRef();
   const path = usePath();
-  const isFocused = useFocused();
-  const isSelected = useSelected();
   const [editing, setEditing] = useState(false);
   const rawValue = (element as { value?: string }).value;
   const value = typeof rawValue === "string" ? rawValue : "";
-  const shouldEdit = editing || (isFocused && isSelected);
   const previewText = useMemo(() => {
     const nextValue = value.trim();
     if (nextValue.length === 0) {
@@ -326,10 +391,10 @@ function RoomHtmlBlockElement(props: PlateElementProps) {
         contentEditable={false}
         data-room-html-block="true"
       >
-        {shouldEdit ? (
-          <textarea
+        {editing ? (
+          <Textarea
             aria-label="Room HTML block source"
-            className="min-h-32 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm outline-none"
+            className="min-h-32 resize-y font-mono text-sm"
             onBlur={() => {
               setEditing(false);
             }}
@@ -412,206 +477,138 @@ function RoomTableHeaderCellElement(props: PlateElementProps) {
   );
 }
 
+function RoomEquationPopover(props: {
+  className?: string;
+  isInline?: boolean;
+  onClose: () => void;
+  open: boolean;
+  placeholder: string;
+}) {
+  const { className, isInline = false, onClose, open, placeholder } = props;
+  const equationInput = useEquationInput({
+    onClose,
+    open,
+  });
+
+  return (
+    <PopoverContent className="w-[min(34rem,calc(100vw-2rem))] p-0">
+      <div className="flex flex-col gap-3 p-4">
+        <Textarea
+          {...equationInput.props}
+          className={cn(
+            "min-h-28 resize-y font-mono text-sm leading-6",
+            isInline ? "min-h-20" : undefined,
+            className,
+          )}
+          autoFocus
+          placeholder={placeholder}
+        />
+        <div className="flex justify-end">
+          <Button onClick={onClose} size="sm" variant="secondary">
+            Done
+          </Button>
+        </div>
+      </div>
+    </PopoverContent>
+  );
+}
+
 function RoomEquationElement(props: PlateElementProps) {
   const { children, element } = props;
   const [open, setOpen] = useState(false);
-  const equationInput = useEquationInput({
-    onClose: () => {
-      setOpen(false);
+  const katexRef = useRef<HTMLDivElement | null>(null);
+
+  useEquationElement({
+    element: props.element as any,
+    katexRef,
+    options: {
+      displayMode: true,
+      errorColor: "#cc0000",
+      output: "htmlAndMathml",
+      strict: "warn",
+      throwOnError: false,
+      trust: false,
     },
-    open,
   });
-  const isFocused = useFocused();
-  const isSelected = useSelected();
-  const expression =
-    typeof (element as { texExpression?: string }).texExpression === "string"
-      ? (element as { texExpression?: string }).texExpression
-      : "";
-  const shouldEdit = open || (isFocused && isSelected);
 
   return (
     <PlateElement {...props} as="div" className="my-5">
-      <div
-        className="rounded-xl border border-border/70 bg-muted/45 px-4 py-3"
-        contentEditable={false}
-      >
-        {shouldEdit ? (
-          <textarea
-            aria-label="Room equation source"
-            className="min-h-28 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm outline-none"
-            {...equationInput.props}
-          />
-        ) : (
-          <button
-            aria-label="Edit equation source"
-            className="block w-full cursor-text text-left"
-            onMouseDown={(event) => {
-              event.preventDefault();
-              setOpen(true);
-            }}
-            type="button"
-          >
+      <Popover modal={false} onOpenChange={setOpen} open={open}>
+        <PopoverTrigger
+          render={
+            <button
+              aria-label="Edit equation"
+              className="block w-full cursor-text rounded-xl border border-border/70 bg-muted/45 px-4 py-3 text-left"
+              type="button"
+            />
+          }
+        >
+          <div className="room-plate-equation-trigger" contentEditable={false}>
             <div
               className="room-plate-equation-preview text-center text-base text-foreground"
-              dangerouslySetInnerHTML={{
-                __html: renderKatexPreview(expression ?? "", true),
-              }}
+              ref={katexRef}
             />
-          </button>
-        )}
-      </div>
+            {typeof (element as { texExpression?: string }).texExpression === "string" &&
+            (element as { texExpression?: string }).texExpression?.length ? null : (
+              <div className="text-sm text-muted-foreground">Add a block equation</div>
+            )}
+          </div>
+        </PopoverTrigger>
+        <RoomEquationPopover
+          onClose={() => {
+            setOpen(false);
+          }}
+          open={open}
+          placeholder="\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}"
+        />
+      </Popover>
       <span className="hidden">{children}</span>
     </PlateElement>
   );
 }
 
 function RoomInlineEquationElement(props: PlateElementProps) {
-  const { children, element } = props;
+  const { children } = props;
   const [open, setOpen] = useState(false);
-  const inlineInput = useEquationInput({
-    isInline: true,
-    onClose: () => {
-      setOpen(false);
+  const katexRef = useRef<HTMLDivElement | null>(null);
+
+  useEquationElement({
+    element: props.element as any,
+    katexRef,
+    options: {
+      displayMode: false,
+      errorColor: "#cc0000",
+      output: "htmlAndMathml",
+      strict: "warn",
+      throwOnError: false,
+      trust: false,
     },
-    open,
   });
-  const expression =
-    typeof (element as { texExpression?: string }).texExpression === "string"
-      ? (element as { texExpression?: string }).texExpression
-      : "";
 
   return (
-    <PlateElement {...props} as="span" className="inline-flex align-baseline">
-      <span className="inline-flex" contentEditable={false}>
-        {open ? (
-          <textarea
-            aria-label="Room inline equation source"
-            className="min-h-9 min-w-36 resize-none rounded-md border border-border bg-background px-2 py-1 font-mono text-xs outline-none"
-            rows={1}
-            {...inlineInput.props}
-          />
-        ) : (
-          <button
-            aria-label="Edit inline equation source"
-            className="inline-flex cursor-text rounded bg-muted px-1.5 py-0.5 text-sm"
-            onMouseDown={(event) => {
-              event.preventDefault();
-              setOpen(true);
-            }}
-            type="button"
-          >
-            <span
-              dangerouslySetInnerHTML={{
-                __html: renderKatexPreview(expression ?? "", false),
-              }}
+    <PlateElement {...props} as="span" className="mx-1 inline-flex align-baseline">
+      <Popover modal={false} onOpenChange={setOpen} open={open}>
+        <PopoverTrigger
+          render={
+            <button
+              aria-label="Edit inline equation"
+              className="inline-flex cursor-text rounded bg-muted px-1.5 py-0.5 text-sm"
+              type="button"
             />
-          </button>
-        )}
-      </span>
-      <span className="hidden">{children}</span>
-    </PlateElement>
-  );
-}
-
-function RoomMermaidPreview(props: { code: string; resolvedTheme: "light" | "dark" }) {
-  const { code, resolvedTheme } = props;
-  const mountRef = useRef<HTMLDivElement>(null);
-  const mermaidId = useId().replaceAll(":", "-");
-  const [error, setError] = useState<string>();
-
-  useEffect(() => {
-    let disposed = false;
-
-    mermaid.initialize({
-      securityLevel: "loose",
-      startOnLoad: false,
-      theme: resolvedTheme === "dark" ? "dark" : "default",
-    });
-
-    void mermaid
-      .render(`room-mermaid-${mermaidId}`, code)
-      .then(({ bindFunctions, svg }) => {
-        if (disposed || !mountRef.current) {
-          return;
-        }
-
-        mountRef.current.innerHTML = svg;
-        bindFunctions?.(mountRef.current);
-        setError(undefined);
-      })
-      .catch((nextError) => {
-        if (disposed) {
-          return;
-        }
-
-        setError(nextError instanceof Error ? nextError.message : "Unable to render Mermaid.");
-      });
-
-    return () => {
-      disposed = true;
-    };
-  }, [code, mermaidId, resolvedTheme]);
-
-  if (error) {
-    return <pre className="overflow-x-auto font-mono text-xs text-muted-foreground">{code}</pre>;
-  }
-
-  return <div ref={mountRef} className="room-plate-mermaid-preview min-h-8" />;
-}
-
-function RoomMermaidElement(props: PlateElementProps) {
-  const { children, element } = props;
-  const { resolvedTheme } = useRoomMarkdownEditorContext();
-  const editor = useEditorRef();
-  const path = usePath();
-  const isFocused = useFocused();
-  const isSelected = useSelected();
-  const [editing, setEditing] = useState(false);
-  const value =
-    typeof (element as { value?: string }).value === "string"
-      ? (element as { value?: string }).value
-      : "";
-  const shouldEdit = editing || (isFocused && isSelected);
-
-  return (
-    <PlateElement {...props} as="div" className="my-5">
-      <div
-        className="rounded-xl border border-border/70 bg-muted/40 px-4 py-3"
-        contentEditable={false}
-      >
-        {shouldEdit ? (
-          <textarea
-            aria-label="Room mermaid source"
-            className="min-h-40 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm outline-none"
-            onBlur={() => {
-              setEditing(false);
-            }}
-            onChange={(event) => {
-              editor.tf.setNodes({ value: event.target.value }, { at: path });
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                event.preventDefault();
-                setEditing(false);
-              }
-            }}
-            value={value}
-          />
-        ) : (
-          <button
-            aria-label="Edit mermaid source"
-            className="block w-full cursor-text text-left"
-            onMouseDown={(event) => {
-              event.preventDefault();
-              setEditing(true);
-              editor.tf.select(path);
-            }}
-            type="button"
-          >
-            <RoomMermaidPreview code={value ?? ""} resolvedTheme={resolvedTheme} />
-          </button>
-        )}
-      </div>
+          }
+        >
+          <div className="font-mono" contentEditable={false} ref={katexRef} />
+        </PopoverTrigger>
+        <RoomEquationPopover
+          className="min-h-16"
+          isInline
+          onClose={() => {
+            setOpen(false);
+          }}
+          open={open}
+          placeholder="E = mc^2"
+        />
+      </Popover>
       <span className="hidden">{children}</span>
     </PlateElement>
   );
@@ -619,7 +616,6 @@ function RoomMermaidElement(props: PlateElementProps) {
 
 const ROOM_MARKDOWN_COMPONENTS = {
   [ROOM_HTML_BLOCK_ELEMENT_TYPE]: RoomHtmlBlockElement,
-  [ROOM_MERMAID_ELEMENT_TYPE]: RoomMermaidElement,
   a: RoomLinkElement,
   blockquote: RoomBlockquoteElement,
   bold: RoomBoldLeaf,
@@ -712,11 +708,15 @@ function RoomRichMarkdownEditor(props: {
           handleChange(nextValue);
         }}
       >
-        <div>
-          <PlateContent
+        <EditorContainer className="room-plate-shell" variant="room">
+          <RoomFixedToolbar>
+            <RoomFixedToolbarButtons />
+          </RoomFixedToolbar>
+
+          <Editor
             aria-label="Room rich markdown editor"
             className={cn(
-              "room-plate-content min-h-full pb-24 outline-none",
+              "room-plate-content min-h-full outline-none",
               resolvedTheme === "dark" ? "dark" : undefined,
             )}
             data-room-markdown-editor="rich"
@@ -727,8 +727,13 @@ function RoomRichMarkdownEditor(props: {
               }
             }}
             spellCheck={false}
+            variant="room"
           />
-        </div>
+
+          <RoomFloatingToolbar>
+            <RoomFloatingToolbarButtons />
+          </RoomFloatingToolbar>
+        </EditorContainer>
       </Plate>
     </RoomMarkdownEditorContext.Provider>
   );

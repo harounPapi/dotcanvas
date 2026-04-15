@@ -34,7 +34,6 @@ import remarkMath from "remark-math";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
-export const ROOM_MERMAID_ELEMENT_TYPE = "room_mermaid";
 export const ROOM_HTML_BLOCK_ELEMENT_TYPE = "room_html_block";
 
 type MarkdownNode = {
@@ -99,13 +98,6 @@ const ROOM_UNSUPPORTED_MARKDOWN_NODE_REASONS: Record<string, string> = {
   yaml: "frontmatter",
 };
 
-const RoomMermaidPlugin = createPlatePlugin({
-  key: ROOM_MERMAID_ELEMENT_TYPE,
-  node: {
-    isElement: true,
-    type: ROOM_MERMAID_ELEMENT_TYPE,
-  },
-});
 const RoomHtmlBlockPlugin = createPlatePlugin({
   key: ROOM_HTML_BLOCK_ELEMENT_TYPE,
   node: {
@@ -159,36 +151,10 @@ export const ROOM_MARKDOWN_PLUGINS: readonly any[] = [
   RoomHtmlBlockPlugin,
   RoomEquationPlugin,
   RoomInlineEquationPlugin,
-  RoomMermaidPlugin,
   MarkdownPlugin.configure({
     options: {
       remarkPlugins: [remarkMath, remarkGfm],
       rules: {
-        code: {
-          deserialize: ((mdastNode: any, deco: any, options: any) => {
-            if (mdastNode.lang === "mermaid") {
-              return {
-                children: [{ text: "" }],
-                type: ROOM_MERMAID_ELEMENT_TYPE,
-                value: mdastNode.value ?? "",
-              };
-            }
-
-            return defaultRules.code?.deserialize?.(mdastNode, deco, options);
-          }) as any,
-        },
-        [ROOM_MERMAID_ELEMENT_TYPE]: {
-          serialize: ((slateNode: any) => ({
-            lang: "mermaid",
-            type: "code",
-            value:
-              typeof slateNode.value === "string"
-                ? slateNode.value
-                : typeof slateNode.rawCode === "string"
-                  ? slateNode.rawCode
-                  : "",
-          })) as any,
-        },
         [ROOM_HTML_BLOCK_ELEMENT_TYPE]: {
           deserialize: ((mdastNode: any) => ({
             children: [{ text: "" }],
@@ -229,14 +195,12 @@ export const ROOM_MARKDOWN_PLUGINS: readonly any[] = [
             value: typeof slateNode.texExpression === "string" ? slateNode.texExpression : "",
           })) as any,
         },
-        math: {
+        equation: {
           deserialize: ((mdastNode: any) => ({
             children: [{ text: "" }],
             texExpression: mdastNode.value ?? "",
             type: KEYS.equation,
           })) as any,
-        },
-        [KEYS.equation]: {
           serialize: ((slateNode: any) => ({
             type: "math",
             value: typeof slateNode.texExpression === "string" ? slateNode.texExpression : "",

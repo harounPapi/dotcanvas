@@ -91,6 +91,7 @@
         "@pierre/diffs": "^1.1.0-beta.16",
         "@platejs/basic-nodes": "^52.3.10",
         "@platejs/code-block": "^52.3.16",
+        "@platejs/floating": "^52.3.10",
         "@platejs/link": "^52.3.17",
         "@platejs/list": "^52.3.10",
         "@platejs/markdown": "^52.3.22",
@@ -112,6 +113,7 @@
         "katex": "^0.16.45",
         "lexical": "^0.41.0",
         "lowlight": "^3.3.0",
+        "lucide-react": "^1.8.0",
         "marked": "^18.0.0",
         "mermaid": "^11.14.0",
         "platejs": "^52.3.21",
@@ -1591,6 +1593,8 @@
     "lru-cache": ["lru-cache@11.2.7", "", {}, "sha512-aY/R+aEsRelme17KGQa/1ZSIpLpNYYrhcrepKTZgE+W3WM16YMCaPwOHLHsmopZHELU0Ojin1lPVxKR0MihncA=="],
 
     "lru_map": ["lru_map@0.4.1", "", {}, "sha512-I+lBvqMMFfqaV8CJCISjI3wbjmwVu/VyOoU7+qtu9d7ioW5klMgsTTiUOUp+DJvfTTzKXoPbyC6YfgkNcyPSOg=="],
+
+    "lucide-react": ["lucide-react@1.8.0", "", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-WuvlsjngSk7TnTBJ1hsCy3ql9V9VOdcPkd3PKcSmM34vJD8KG6molxz7m7zbYFgICwsanQWmJ13JlYs4Zp7Arw=="],
 
     "magic-string": ["magic-string@0.30.21", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.5" } }, "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ=="],
 

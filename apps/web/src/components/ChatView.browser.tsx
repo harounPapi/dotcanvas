@@ -1775,8 +1775,66 @@ describe("ChatView timeline estimator parity (full app)", () => {
           expect(document.body.textContent).toContain("console.log('preview');");
           expect(document.body.textContent).not.toContain("$$");
           expect(document.body.textContent).toContain("x+1");
-          expect(document.querySelector('button[aria-label="Edit equation source"]')).toBeTruthy();
-          expect(document.querySelector('button[aria-label="Edit mermaid source"]')).toBeTruthy();
+          expect(document.querySelector('[data-room-plate-toolbar="fixed"]')).toBeTruthy();
+          expect(document.querySelector('button[aria-label="Edit equation"]')).toBeTruthy();
+          expect(document.querySelector(".room-plate-mermaid-preview")).toBeTruthy();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("renders math and code blocks through the plate room block UI", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-block-source" as MessageId,
+        targetText: "room block source markers",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "README.md", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (body._tag === WS_METHODS.projectsReadFile) {
+          return {
+            relativePath: "README.md",
+            contents:
+              '# Project README\n\nInline $room$ math.\n\n```javascript\nconsole.log("hello");\n```\n\n$$\n\\\\sum_{i=1}^{n} i = \\\\frac{n(n+1)}{2}\n$$\n',
+            sizeBytes: 140,
+            mtimeMs: 14,
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const fileTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("README.md"),
+          ) ?? null,
+        "Unable to find README.md in the Room tree.",
+      );
+      fileTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain('console.log("hello");');
+          expect(document.body.textContent).not.toContain("```javascript");
+          expect(document.body.textContent).not.toContain("$$");
+          expect(document.querySelector(".room-plate-code-block")).toBeTruthy();
+          expect(document.querySelector('button[aria-label="Edit equation"]')).toBeTruthy();
+          expect(
+            document.querySelector('button[aria-label="Reveal display math source"]'),
+          ).toBeFalsy();
+          expect(document.querySelector('[aria-label="Room code block source"]')).toBeFalsy();
         },
         { timeout: 8_000, interval: 16 },
       );
