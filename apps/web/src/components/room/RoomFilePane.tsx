@@ -41,6 +41,7 @@ import {
   TriangleAlertIcon,
 } from "~/components/ui/icons";
 import { Skeleton } from "~/components/ui/skeleton";
+import { Separator } from "~/components/ui/separator";
 import { cn } from "~/lib/utils";
 
 import { RoomMarkdownSurface } from "./RoomMarkdownSurface";
@@ -524,15 +525,17 @@ export function RoomFilePane(props: {
         </div>
       ) : null}
 
-      <div className="min-h-0 min-w-0 flex-1 overflow-auto px-5 pb-5">
+      {selectedPath ? <Separator /> : null}
+
+      <div className="min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden">
         {!selectedPath ? (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          <div className="flex h-full items-center justify-center px-5 text-sm text-muted-foreground">
             Select a file from the Room folder sidebar.
           </div>
         ) : null}
 
         {selectedPath && (hasSaveConflict || wasDeletedOnDisk) ? (
-          <Alert className="mb-4" variant="warning">
+          <Alert className="m-5 mb-4" variant="warning">
             <TriangleAlertIcon />
             <AlertTitle>
               {wasDeletedOnDisk ? "File deleted on disk" : "File changed on disk"}
@@ -581,7 +584,7 @@ export function RoomFilePane(props: {
         ) : null}
 
         {selectedPath && saveError && !hasSaveConflict ? (
-          <Alert className="mb-4" variant="error">
+          <Alert className="m-5 mb-4" variant="error">
             <TriangleAlertIcon />
             <AlertTitle>Unable to save this file</AlertTitle>
             <AlertDescription>{saveError}</AlertDescription>
@@ -589,7 +592,7 @@ export function RoomFilePane(props: {
         ) : null}
 
         {showLoadingPlaceholder ? (
-          <div className="flex flex-col gap-4 pt-2">
+          <div className="flex flex-col gap-4 px-5 pt-4">
             <Skeleton className="h-8 w-48 rounded-lg" />
             <Skeleton className="h-24 w-full rounded-xl" />
             <Skeleton className="h-16 w-11/12 rounded-xl" />
@@ -598,7 +601,7 @@ export function RoomFilePane(props: {
         ) : null}
 
         {selectedPath && shouldShowUnsupportedState ? (
-          <Empty className="min-h-full justify-start pt-10">
+          <Empty className="min-h-full justify-start px-5 pt-10">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <FileIcon />
@@ -621,7 +624,7 @@ export function RoomFilePane(props: {
         isMarkdownSelection &&
         selectedError &&
         !isUnsupportedRoomFileMessage(selectedError) ? (
-          <Alert className="mt-2" variant="error">
+          <Alert className="m-5 mt-4" variant="error">
             <TriangleAlertIcon />
             <AlertTitle>Unable to open this file</AlertTitle>
             <AlertDescription>{selectedError}</AlertDescription>
@@ -641,8 +644,9 @@ export function RoomFilePane(props: {
         ) : null}
 
         {selectedPath && hasLoadedMarkdown ? (
-          <div className="min-h-full pt-2">
+          <div className="min-h-0 flex-1">
             <RoomMarkdownSurface
+              className="h-full"
               key={selectedPath}
               onChange={handleDraftChange}
               onSave={() => {

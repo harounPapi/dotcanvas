@@ -404,7 +404,12 @@ label:has(> select#reasoning-effort) select {
 
 /* Room markdown editor */
 .room-markdown-surface {
+  min-height: 100%;
   min-width: 0;
+}
+
+.room-plate-shell {
+  min-height: 100%;
 }
 
 .room-plate-content,
@@ -436,17 +441,57 @@ label:has(> select#reasoning-effort) select {
 
 .room-plate-content ul,
 .room-plate-content ol {
-  margin: 0.45rem 0 0.45rem 1.3rem;
-  padding: 0;
+  margin-block: 0.45rem;
+  margin-inline: 0;
+  padding-inline-start: 0;
+}
+
+.room-plate-content ul:not([style*="list-style-type: todo"]),
+.room-plate-content ol:not([style*="list-style-type: todo"]) {
+  list-style: none;
+}
+
+.room-plate-content ul:not([style*="list-style-type: todo"]) > li,
+.room-plate-content ol:not([style*="list-style-type: todo"]) > li {
+  list-style: none;
+}
+
+.room-plate-content ul:not([style*="list-style-type: todo"]) > li::marker,
+.room-plate-content ol:not([style*="list-style-type: todo"]) > li::marker {
+  content: "";
+}
+
+.room-plate-content li > ul:not([style*="list-style-type: todo"]),
+.room-plate-content li > ol:not([style*="list-style-type: todo"]) {
+  margin-top: 0.18rem;
+  padding-inline-start: 1.6rem;
 }
 
 .room-plate-content li + li {
   margin-top: 0.18rem;
 }
 
+.room-plate-content .room-plate-list-item {
+  align-items: start;
+}
+
+.room-plate-content .room-plate-list-marker {
+  color: color-mix(in srgb, var(--foreground) 58%, transparent);
+  display: inline-flex;
+  justify-content: flex-end;
+  min-width: 1.2rem;
+  padding-top: 0.02rem;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.room-plate-content .room-plate-list-marker::before {
+  content: attr(data-room-list-marker);
+}
+
 .room-plate-content ul[style*="list-style-type: todo"],
 .room-plate-content ol[style*="list-style-type: todo"] {
-  margin-left: 0;
+  padding-inline-start: 0;
   list-style: none !important;
 }
 
@@ -458,11 +503,15 @@ label:has(> select#reasoning-effort) select {
 .room-plate-content [data-slate-editor="true"] {
   min-height: 100%;
   outline: none;
-  padding-inline: 0.9rem;
+  padding-inline: 0;
 }
 
 .room-plate-content .slate-selection-area {
   background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.room-plate-content [data-room-slash-input="true"] {
+  color: var(--muted-foreground);
 }
 
 .room-plate-mermaid-preview svg {
@@ -494,8 +543,13 @@ label:has(> select#reasoning-effort) select {
   min-width: 0;
 }
 
+.room-markdown-surface [data-room-markdown-fallback="true"] {
+  padding: 1rem max(64px, calc(50% - 350px)) 0;
+}
+
 .room-raw-markdown-editor .cm-content {
-  padding-inline: 0.9rem;
+  padding-block: 1rem 10rem;
+  padding-inline: max(64px, calc(50% - 350px));
 }
 
 .room-raw-markdown-editor .cm-editor.cm-focused {

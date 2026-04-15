@@ -34,6 +34,8 @@ import remarkMath from "remark-math";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
+import { withRoomElementIds } from "./roomElementIds";
+
 export const ROOM_HTML_BLOCK_ELEMENT_TYPE = "room_html_block";
 
 type MarkdownNode = {
@@ -408,7 +410,7 @@ export function createRoomMarkdownConversionEditor(): ReturnType<typeof createPl
 
 export function deserializeRoomMarkdown(markdown: string) {
   const editor = createRoomMarkdownConversionEditor();
-  return editor.api.markdown.deserialize(normalizeRoomMarkdownSource(markdown));
+  return withRoomElementIds(editor.api.markdown.deserialize(normalizeRoomMarkdownSource(markdown)));
 }
 
 export function serializeRoomMarkdown(editor: {

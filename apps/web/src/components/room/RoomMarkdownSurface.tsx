@@ -4,10 +4,27 @@ import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
+import {
+  autoformatArrow,
+  AutoformatPlugin,
+  autoformatLegal,
+  autoformatLegalHtml,
+  autoformatMath,
+  autoformatPunctuation,
+  autoformatSmartQuotes,
+} from "@platejs/autoformat";
+import { insertEmptyCodeBlock } from "@platejs/code-block";
+import { DndPlugin } from "@platejs/dnd";
+import { toggleList } from "@platejs/list";
 import { useTodoListElement, useTodoListElementState } from "@platejs/list/react";
 import { useEquationElement, useEquationInput } from "@platejs/math/react";
+import { SlashInputPlugin, SlashPlugin } from "@platejs/slash-command/react";
 import mermaid from "mermaid";
+import { DndProvider } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
+import { ExitBreakPlugin, KEYS, TrailingBlockPlugin } from "platejs";
 import {
+  BlockPlaceholderPlugin,
   Plate,
   PlateElement,
   PlateLeaf,
@@ -29,6 +46,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 
 import { Button } from "~/components/ui/button";
@@ -46,6 +64,16 @@ import {
   roomMarkdownFallbackMessage,
   serializeRoomMarkdown,
 } from "./roomMarkdownDocument";
+import { RoomBlockContextMenu } from "./roomBlockContextMenu";
+import { RoomBlockDraggable } from "./roomBlockDraggable";
+import { assignMissingRoomElementIds } from "./roomElementIds";
+import {
+  getRoomListIndentLevel,
+  getRoomListMarkerLabel,
+  isRoomTodoListItem,
+  type RoomListMarkerNode,
+} from "./roomListMarkers";
+import { RoomSlashInputElement } from "./roomSlashNode";
 import {
   RoomFixedToolbar,
   RoomFixedToolbarButtons,
@@ -87,37 +115,40 @@ function RoomHeadingElement(props: PlateElementProps & { level: 1 | 2 | 3 | 4 | 
 }
 
 function RoomParagraphElement(props: PlateElementProps) {
-  const { children, element } = props;
+  const { element } = props;
   const listStyleType =
     typeof (element as { listStyleType?: string }).listStyleType === "string"
       ? (element as { listStyleType?: string }).listStyleType
       : undefined;
-  const isTodoItem =
-    listStyleType === "todo" || typeof (element as { checked?: boolean }).checked === "boolean";
+  const isTodoItem = isRoomTodoListItem(element as RoomListMarkerNode);
 
   if (!listStyleType) {
     return (
       <PlateElement {...props} as="p" className="my-0 leading-7 text-[15px] text-foreground/88">
-        {children}
+        {props.children}
       </PlateElement>
     );
   }
 
-  if (!isTodoItem) {
-    return (
-      <PlateElement {...props} as="div" className="my-0 leading-7 text-[15px] text-foreground/88">
-        {children}
-      </PlateElement>
-    );
+  if (isTodoItem) {
+    return <RoomTodoListParagraphElement {...props} />;
   }
 
+  return <RoomStandardListParagraphElement {...props} />;
+}
+
+function RoomTodoListParagraphElement(props: PlateElementProps) {
+  const { children, element } = props;
   const todoState = useTodoListElement(useTodoListElementState({ element }));
+  const indentLevel = getRoomListIndentLevel(element as RoomListMarkerNode);
+  const indentStyle = indentLevel > 0 ? { paddingInlineStart: `${indentLevel * 1.6}rem` } : null;
 
   return (
     <PlateElement
       {...props}
       as="div"
       className="room-plate-todo-item my-0 flex items-start gap-3 leading-7 text-[15px] text-foreground/88"
+      {...(indentStyle ? { style: indentStyle } : {})}
     >
       <span
         className="mt-[0.22rem] flex shrink-0 items-center justify-center"
@@ -140,6 +171,36 @@ function RoomParagraphElement(props: PlateElementProps) {
         </button>
       </span>
       <div className="min-w-0 flex-1">{children}</div>
+    </PlateElement>
+  );
+}
+
+function RoomStandardListParagraphElement(props: PlateElementProps) {
+  const { children, element } = props;
+  const editor = useEditorRef() as { children?: RoomListMarkerNode[] };
+  const path = usePath();
+  const indentLevel = getRoomListIndentLevel(element as RoomListMarkerNode);
+  const indentStyle = indentLevel > 0 ? { paddingInlineStart: `${indentLevel * 1.6}rem` } : null;
+  const marker = getRoomListMarkerLabel(
+    element as RoomListMarkerNode,
+    editor.children ?? [],
+    typeof path[0] === "number" ? path[0] : -1,
+  );
+
+  return (
+    <PlateElement
+      {...props}
+      as="div"
+      className="room-plate-list-item my-0 grid min-w-0 grid-cols-[minmax(1.2rem,max-content)_minmax(0,1fr)] gap-x-2 leading-7 text-[15px] text-foreground/88"
+      {...(indentStyle ? { style: indentStyle } : {})}
+    >
+      <span
+        aria-hidden="true"
+        className="room-plate-list-marker"
+        contentEditable={false}
+        data-room-list-marker={marker ?? ""}
+      />
+      <div className="min-w-0">{children}</div>
     </PlateElement>
   );
 }
@@ -318,7 +379,14 @@ function RoomCodeBlockElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...props} as="div" className="my-5">
-      <div className="room-plate-code-block relative overflow-hidden rounded-xl border border-border/70 bg-muted/45">
+      <div
+        className={cn(
+          "room-plate-code-block relative overflow-hidden rounded-xl transition-colors",
+          showMermaidPreview
+            ? "border border-transparent bg-transparent hover:border-border/70 focus-within:border-border/70"
+            : "border border-border/70 bg-muted/45",
+        )}
+      >
         <div
           className="pointer-events-none absolute top-2 right-2 z-10 flex items-center gap-1.5"
           contentEditable={false}
@@ -538,7 +606,7 @@ function RoomEquationElement(props: PlateElementProps) {
           render={
             <button
               aria-label="Edit equation"
-              className="block w-full cursor-text rounded-xl border border-border/70 bg-muted/45 px-4 py-3 text-left"
+              className="block w-full cursor-text rounded-xl border border-transparent bg-transparent px-4 py-3 text-left transition-colors hover:border-border/70 focus-visible:border-border/70"
               type="button"
             />
           }
@@ -641,6 +709,142 @@ const ROOM_MARKDOWN_COMPONENTS = {
   tr: RoomTableRowElement,
 } as const;
 
+const ROOM_AUTOFORMAT_MARK_RULES = [
+  { match: "***", mode: "mark", type: [KEYS.bold, KEYS.italic] },
+  { match: "**", mode: "mark", type: KEYS.bold },
+  { match: "__", mode: "mark", type: KEYS.underline },
+  { match: "*", mode: "mark", type: KEYS.italic },
+  { match: "_", mode: "mark", type: KEYS.italic },
+  { match: "~~", mode: "mark", type: KEYS.strikethrough },
+  { match: "`", mode: "mark", type: KEYS.code },
+] as const;
+
+const ROOM_AUTOFORMAT_BLOCK_RULES = [
+  { match: "# ", mode: "block", type: KEYS.h1 },
+  { match: "## ", mode: "block", type: KEYS.h2 },
+  { match: "### ", mode: "block", type: KEYS.h3 },
+  { match: "#### ", mode: "block", type: KEYS.h4 },
+  { match: "> ", mode: "block", type: KEYS.blockquote },
+  {
+    match: "```",
+    mode: "block",
+    type: KEYS.codeBlock,
+    format: (editor: any) => {
+      insertEmptyCodeBlock(editor, {
+        defaultType: KEYS.p,
+        insertNodesOptions: { select: true },
+      });
+    },
+  },
+  {
+    match: ["---", "___"],
+    mode: "block",
+    type: KEYS.hr,
+    format: (editor: any) => {
+      editor.tf.setNodes({ type: KEYS.hr });
+      editor.tf.insertNodes({ children: [{ text: "" }], type: KEYS.p });
+    },
+  },
+] as const;
+
+const ROOM_AUTOFORMAT_LIST_RULES = [
+  {
+    match: ["* ", "- "],
+    mode: "block",
+    type: "list",
+    format: (editor: any) => {
+      toggleList(editor, { listStyleType: KEYS.ul });
+    },
+  },
+  {
+    match: [String.raw`^\d+\.$ `, String.raw`^\d+\)$ `],
+    matchByRegex: true,
+    mode: "block",
+    type: "list",
+    format: (editor: any, { matchString }: { matchString: string }) => {
+      toggleList(editor, {
+        listRestartPolite: Number(matchString) || 1,
+        listStyleType: KEYS.ol,
+      });
+    },
+  },
+  {
+    match: ["[] "],
+    mode: "block",
+    type: "list",
+    format: (editor: any) => {
+      toggleList(editor, { listStyleType: KEYS.listTodo });
+      editor.tf.setNodes({ checked: false, listStyleType: KEYS.listTodo });
+    },
+  },
+  {
+    match: ["[x] "],
+    mode: "block",
+    type: "list",
+    format: (editor: any) => {
+      toggleList(editor, { listStyleType: KEYS.listTodo });
+      editor.tf.setNodes({ checked: true, listStyleType: KEYS.listTodo });
+    },
+  },
+] as const;
+
+const ROOM_EDITOR_PLUGINS = [
+  ...ROOM_MARKDOWN_PLUGINS,
+  AutoformatPlugin.configure({
+    options: {
+      enableUndoOnDelete: true,
+      rules: [
+        ...ROOM_AUTOFORMAT_BLOCK_RULES,
+        ...ROOM_AUTOFORMAT_MARK_RULES,
+        ...ROOM_AUTOFORMAT_LIST_RULES,
+        ...autoformatSmartQuotes,
+        ...autoformatPunctuation,
+        ...autoformatLegal,
+        ...autoformatLegalHtml,
+        ...autoformatArrow,
+        ...autoformatMath,
+      ],
+    },
+  }),
+  SlashPlugin.configure({
+    options: {
+      triggerQuery: (editor: any) =>
+        !editor.api.some({
+          match: { type: editor.getType(KEYS.codeBlock) },
+        }),
+    },
+  }),
+  SlashInputPlugin.withComponent(RoomSlashInputElement),
+  DndPlugin.configure({
+    options: {
+      enableScroller: true,
+    },
+    render: {
+      aboveNodes: RoomBlockDraggable,
+      aboveSlate: ({ children }: { children: ReactNode }) => (
+        <DndProvider backend={HTML5Backend}>{children}</DndProvider>
+      ),
+    },
+  }),
+  BlockPlaceholderPlugin.configure({
+    options: {
+      className:
+        "before:absolute before:cursor-text before:text-muted-foreground/70 before:content-[attr(placeholder)]",
+      placeholders: {
+        [KEYS.p]: "Type something...",
+      },
+      query: ({ path }: { path: number[] }) => path.length === 1,
+    },
+  }),
+  ExitBreakPlugin.configure({
+    shortcuts: {
+      insert: { keys: "mod+enter" },
+      insertBefore: { keys: "mod+shift+enter" },
+    },
+  }),
+  TrailingBlockPlugin,
+] as const;
+
 function RoomRichMarkdownEditor(props: {
   onChange: (nextValue: string) => void;
   onSave: () => void;
@@ -650,11 +854,12 @@ function RoomRichMarkdownEditor(props: {
   const { onChange, onSave, resolvedTheme, value } = props;
   const syncedValueRef = useRef(value);
   const applyingExternalValueRef = useRef(false);
+  const assigningIdsRef = useRef(false);
   const lastAppliedPropValueRef = useRef<string | null>(null);
   const editor = usePlateEditor(
     {
       components: ROOM_MARKDOWN_COMPONENTS,
-      plugins: [...ROOM_MARKDOWN_PLUGINS],
+      plugins: [...ROOM_EDITOR_PLUGINS],
       value: [{ children: [{ text: "" }], type: "p" }],
     },
     [],
@@ -665,6 +870,11 @@ function RoomRichMarkdownEditor(props: {
   const handleChange = useEffectEvent((nextValue: string) => {
     onChange(nextValue);
   });
+  const [contextState, setContextState] = useState<{
+    blockId: string;
+    x: number;
+    y: number;
+  } | null>(null);
 
   useEffect(() => {
     if (!editor) {
@@ -692,6 +902,16 @@ function RoomRichMarkdownEditor(props: {
       <Plate
         editor={editor}
         onValueChange={({ editor: nextEditor }) => {
+          if (assigningIdsRef.current) {
+            assigningIdsRef.current = false;
+            return;
+          }
+
+          if (assignMissingRoomElementIds(nextEditor as any)) {
+            assigningIdsRef.current = true;
+            return;
+          }
+
           const nextValue = serializeRoomMarkdown(nextEditor);
           if (applyingExternalValueRef.current) {
             applyingExternalValueRef.current = false;
@@ -708,7 +928,7 @@ function RoomRichMarkdownEditor(props: {
           handleChange(nextValue);
         }}
       >
-        <EditorContainer className="room-plate-shell" variant="room">
+        <EditorContainer className="ignore-click-outside/toolbar room-plate-shell" variant="room">
           <RoomFixedToolbar>
             <RoomFixedToolbarButtons />
           </RoomFixedToolbar>
@@ -720,6 +940,23 @@ function RoomRichMarkdownEditor(props: {
               resolvedTheme === "dark" ? "dark" : undefined,
             )}
             data-room-markdown-editor="rich"
+            onContextMenu={(event) => {
+              const target = event.target as HTMLElement | null;
+              const block = target?.closest<HTMLElement>("[data-room-block-id]");
+              const blockId = block?.dataset.roomBlockId;
+
+              if (!blockId) {
+                setContextState(null);
+                return;
+              }
+
+              event.preventDefault();
+              setContextState({
+                blockId,
+                x: event.clientX,
+                y: event.clientY,
+              });
+            }}
             onKeyDown={(event) => {
               if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
                 event.preventDefault();
@@ -727,12 +964,19 @@ function RoomRichMarkdownEditor(props: {
               }
             }}
             spellCheck={false}
-            variant="room"
+            variant="default"
           />
 
           <RoomFloatingToolbar>
             <RoomFloatingToolbarButtons />
           </RoomFloatingToolbar>
+
+          <RoomBlockContextMenu
+            contextState={contextState}
+            onClose={() => {
+              setContextState(null);
+            }}
+          />
         </EditorContainer>
       </Plate>
     </RoomMarkdownEditorContext.Provider>
@@ -780,7 +1024,7 @@ function createRawMarkdownExtensions(options: {
         },
         ".cm-content": {
           minHeight: "100%",
-          padding: "0.2rem 0 10rem",
+          padding: "0",
         },
         ".cm-focused": {
           outline: "none",
@@ -864,7 +1108,7 @@ function RoomRawMarkdownEditor(props: {
     });
   }, [value]);
 
-  return <div ref={mountRef} className="room-raw-markdown-editor min-h-full" />;
+  return <div ref={mountRef} className="room-raw-markdown-editor h-full min-h-0" />;
 }
 
 export function RoomMarkdownSurface(props: {
@@ -879,7 +1123,7 @@ export function RoomMarkdownSurface(props: {
 
   return (
     <div
-      className={cn("room-markdown-surface min-h-full", className)}
+      className={cn("room-markdown-surface h-full min-h-0", className)}
       data-room-markdown-mode={mode.mode}
       data-room-markdown-surface="true"
     >

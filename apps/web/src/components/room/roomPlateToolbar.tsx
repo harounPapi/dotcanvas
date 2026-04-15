@@ -2,93 +2,211 @@
 
 import type * as React from "react";
 
-import { flip, offset, useFloatingToolbar, useFloatingToolbarState } from "@platejs/floating";
 import { toggleCodeBlock } from "@platejs/code-block";
+import { flip, offset, useFloatingToolbar, useFloatingToolbarState } from "@platejs/floating";
 import { upsertLink } from "@platejs/link";
-import { ListStyleType } from "@platejs/list";
-import {
-  useIndentTodoToolBarButton,
-  useIndentTodoToolBarButtonState,
-  useListToolbarButton,
-  useListToolbarButtonState,
-} from "@platejs/list/react";
+import { ListStyleType, someList, toggleList } from "@platejs/list";
+import { useIndentTodoToolBarButton, useIndentTodoToolBarButtonState } from "@platejs/list/react";
 import { insertEquation, insertInlineEquation } from "@platejs/math";
 import { insertTable } from "@platejs/table";
 import {
-  Bold,
-  Code2,
-  Heading1,
-  Heading2,
-  Heading3,
-  Italic,
-  Link,
-  List,
-  ListOrdered,
-  ListTodo,
-  Quote,
-  Radical,
-  SquareCode,
-  Strikethrough,
-  Table2,
+  BoldIcon,
+  ChevronDownIcon,
+  Code2Icon,
+  FileCode2Icon,
+  Heading1Icon,
+  Heading2Icon,
+  Heading3Icon,
+  ItalicIcon,
+  Link2Icon,
+  ListIcon,
+  ListOrderedIcon,
+  MinusIcon,
+  MoreHorizontalIcon,
+  PilcrowIcon,
+  PlusIcon,
+  QuoteIcon,
+  RadicalIcon,
+  Redo2Icon,
+  SquareIcon,
+  StrikethroughIcon,
+  Table2Icon,
+  Undo2Icon,
 } from "lucide-react";
 import { KEYS } from "platejs";
 import {
   useEditorId,
   useEditorReadOnly,
   useEditorRef,
+  useEditorSelector,
   useEventEditorValue,
   useMarkToolbarButton,
   useMarkToolbarButtonState,
 } from "platejs/react";
+import { useMemo, useState } from "react";
 
-import { Button } from "~/components/ui/button";
-import { Separator } from "~/components/ui/separator";
-import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "~/components/ui/tooltip";
+import {
+  insertRoomBlock,
+  insertRoomInlineElement,
+  ROOM_MERMAID_BLOCK,
+  setRoomBlockType,
+} from "./roomEditorTransforms";
+import {
+  RoomDropdownMenu,
+  RoomDropdownMenuContent,
+  RoomDropdownMenuGroup,
+  RoomDropdownMenuItem,
+  RoomDropdownMenuRadioItem,
+  RoomDropdownMenuTrigger,
+} from "./roomRadixMenu";
+import {
+  roomDropdownArrowVariants,
+  roomToolbarButtonVariants,
+  RoomToolbar,
+  RoomToolbarButton,
+  RoomToolbarGroup,
+  RoomToolbarMenuGroup,
+  RoomToolbarSplitButton,
+  RoomToolbarSplitButtonPrimary,
+} from "./roomToolbar";
 import { cn } from "~/lib/utils";
 
 function preventToolbarMouseDown(event: React.MouseEvent) {
   event.preventDefault();
 }
 
-function RoomToolbarButton(props: {
-  children: React.ReactNode;
-  className?: string;
-  onClick?: React.MouseEventHandler<HTMLButtonElement>;
-  onMouseDown?: React.MouseEventHandler<HTMLButtonElement>;
-  pressed?: boolean;
-  tooltip: string;
-}) {
-  const { children, className, onClick, onMouseDown, pressed = false, tooltip } = props;
-  const buttonElement = (
-    <Button
-      className={cn(
-        "rounded-md text-muted-foreground hover:text-foreground data-[pressed=true]:bg-accent data-[pressed=true]:text-foreground",
-        className,
-      )}
-      data-pressed={pressed ? "true" : undefined}
-      onClick={onClick}
-      onMouseDown={onMouseDown}
-      size="icon-xs"
-      type="button"
-      variant="ghost"
-    >
-      {children}
-    </Button>
-  );
+const TURN_INTO_ITEMS = [
+  { icon: <FileCode2Icon />, label: "Code block", value: KEYS.codeBlock },
+  { icon: <Heading1Icon />, label: "Heading 1", value: KEYS.h1 },
+  { icon: <Heading2Icon />, label: "Heading 2", value: KEYS.h2 },
+  { icon: <Heading3Icon />, label: "Heading 3", value: KEYS.h3 },
+  { icon: <ListIcon />, label: "Bulleted list", value: KEYS.ul },
+  { icon: <ListOrderedIcon />, label: "Numbered list", value: KEYS.ol },
+  { icon: <SquareIcon />, label: "To-do list", value: KEYS.listTodo },
+  { icon: <QuoteIcon />, label: "Quote", value: KEYS.blockquote },
+  { icon: <Code2Icon />, label: "Mermaid", value: ROOM_MERMAID_BLOCK },
+  { icon: <MinusIcon />, label: "Divider", value: KEYS.hr },
+  { icon: <RadicalIcon />, label: "Equation", value: KEYS.equation },
+  { icon: <Table2Icon />, label: "Table", value: KEYS.table },
+  { icon: <PilcrowIcon />, label: "Text", value: KEYS.p },
+] as const;
+
+const INSERT_GROUPS = [
+  {
+    group: "Basic blocks",
+    items: [
+      { icon: <PilcrowIcon />, label: "Paragraph", value: KEYS.p },
+      { icon: <Heading1Icon />, label: "Heading 1", value: KEYS.h1 },
+      { icon: <Heading2Icon />, label: "Heading 2", value: KEYS.h2 },
+      { icon: <Heading3Icon />, label: "Heading 3", value: KEYS.h3 },
+      { icon: <FileCode2Icon />, label: "Code block", value: KEYS.codeBlock },
+      { icon: <Table2Icon />, label: "Table", value: KEYS.table },
+      { icon: <QuoteIcon />, label: "Blockquote", value: KEYS.blockquote },
+      { icon: <MinusIcon />, label: "Divider", value: KEYS.hr },
+    ],
+  },
+  {
+    group: "Lists",
+    items: [
+      { icon: <ListIcon />, label: "Bulleted list", value: KEYS.ul },
+      { icon: <ListOrderedIcon />, label: "Numbered list", value: KEYS.ol },
+      { icon: <SquareIcon />, label: "To-do list", value: KEYS.listTodo },
+    ],
+  },
+  {
+    group: "Advanced blocks",
+    items: [
+      { icon: <RadicalIcon />, label: "Equation", value: KEYS.equation },
+      { icon: <Code2Icon />, label: "Mermaid diagram", value: ROOM_MERMAID_BLOCK },
+    ],
+  },
+  {
+    group: "Inline",
+    items: [
+      { icon: <Link2Icon />, label: "Link", value: KEYS.link },
+      { icon: <RadicalIcon />, label: "Inline equation", value: KEYS.inlineEquation },
+    ],
+  },
+] as const;
+
+function selectionBlockType(editor: any): string {
+  const blockEntry = editor.api.block();
+  const node = blockEntry?.[0] as
+    | {
+        checked?: boolean;
+        lang?: string;
+        listStyleType?: string;
+        type?: string;
+      }
+    | undefined;
+
+  if (!node) {
+    return KEYS.p;
+  }
+
+  if (node.type === KEYS.codeBlock && node.lang === "mermaid") {
+    return ROOM_MERMAID_BLOCK;
+  }
+
+  if (node.listStyleType === KEYS.listTodo || typeof node.checked === "boolean") {
+    return KEYS.listTodo;
+  }
+
+  if (
+    node.listStyleType === ListStyleType.Decimal ||
+    node.listStyleType === ListStyleType.LowerAlpha ||
+    node.listStyleType === ListStyleType.UpperAlpha ||
+    node.listStyleType === ListStyleType.LowerRoman ||
+    node.listStyleType === ListStyleType.UpperRoman
+  ) {
+    return KEYS.ol;
+  }
+
+  if (
+    node.listStyleType === ListStyleType.Disc ||
+    node.listStyleType === ListStyleType.Circle ||
+    node.listStyleType === ListStyleType.Square
+  ) {
+    return KEYS.ul;
+  }
+
+  return node.type ?? KEYS.p;
+}
+
+function RoomUndoToolbarButton() {
+  const editor = useEditorRef();
+  const disabled = useEditorSelector((nextEditor) => nextEditor.history.undos.length === 0, []);
 
   return (
-    <Tooltip>
-      <TooltipTrigger render={buttonElement as React.ReactElement<Record<string, unknown>>} />
-      <TooltipPopup side="top" sideOffset={6}>
-        {tooltip}
-      </TooltipPopup>
-    </Tooltip>
+    <RoomToolbarButton
+      disabled={disabled}
+      onClick={() => {
+        editor.undo();
+      }}
+      onMouseDown={preventToolbarMouseDown}
+      tooltip="Undo"
+    >
+      <Undo2Icon />
+    </RoomToolbarButton>
   );
 }
 
-function RoomToolbarGroup(props: React.ComponentProps<"div">) {
-  const { className, ...rest } = props;
-  return <div className={cn("flex items-center gap-0.5", className)} {...rest} />;
+function RoomRedoToolbarButton() {
+  const editor = useEditorRef();
+  const disabled = useEditorSelector((nextEditor) => nextEditor.history.redos.length === 0, []);
+
+  return (
+    <RoomToolbarButton
+      disabled={disabled}
+      onClick={() => {
+        editor.redo();
+      }}
+      onMouseDown={preventToolbarMouseDown}
+      tooltip="Redo"
+    >
+      <Redo2Icon />
+    </RoomToolbarButton>
+  );
 }
 
 function RoomMarkToolbarButton(props: {
@@ -98,26 +216,6 @@ function RoomMarkToolbarButton(props: {
 }) {
   const state = useMarkToolbarButtonState({ nodeType: props.nodeType });
   const { props: buttonProps } = useMarkToolbarButton(state);
-
-  return (
-    <RoomToolbarButton
-      onClick={buttonProps.onClick}
-      onMouseDown={buttonProps.onMouseDown}
-      pressed={Boolean(buttonProps.pressed)}
-      tooltip={props.tooltip}
-    >
-      {props.children}
-    </RoomToolbarButton>
-  );
-}
-
-function RoomListToolbarButton(props: {
-  children: React.ReactNode;
-  nodeType: ListStyleType;
-  tooltip: string;
-}) {
-  const state = useListToolbarButtonState({ nodeType: props.nodeType });
-  const { props: buttonProps } = useListToolbarButton(state);
 
   return (
     <RoomToolbarButton
@@ -142,96 +240,278 @@ function RoomTodoToolbarButton() {
       pressed={Boolean(buttonProps.pressed)}
       tooltip="Todo list"
     >
-      <ListTodo />
+      <SquareIcon />
     </RoomToolbarButton>
   );
 }
 
-function RoomToggleBlockButton(props: {
-  children: React.ReactNode;
-  tooltip: string;
-  type: "blockquote" | "h1" | "h2" | "h3";
-}) {
+function RoomTurnIntoToolbarButton() {
   const editor = useEditorRef() as any;
+  const [open, setOpen] = useState(false);
+  const value = useEditorSelector((nextEditor) => selectionBlockType(nextEditor), []);
+  const selectedItem = useMemo(
+    () => TURN_INTO_ITEMS.find((item) => item.value === value) ?? TURN_INTO_ITEMS.at(-1)!,
+    [value],
+  );
 
   return (
-    <RoomToolbarButton
-      onClick={() => {
-        editor?.tf?.[props.type]?.toggle?.();
-      }}
-      onMouseDown={preventToolbarMouseDown}
-      tooltip={props.tooltip}
-    >
-      {props.children}
-    </RoomToolbarButton>
+    <RoomDropdownMenu onOpenChange={setOpen} open={open}>
+      <RoomDropdownMenuTrigger
+        className={cn(
+          roomToolbarButtonVariants({
+            size: "sm",
+            variant: "default",
+          }),
+          "min-w-[132px] justify-between gap-1 pr-1",
+          open ? "bg-accent text-accent-foreground" : undefined,
+        )}
+      >
+        <span className="truncate">{selectedItem.label}</span>
+        <span className="flex shrink-0 items-center">
+          <ChevronDownIcon className="size-3.5 text-muted-foreground" data-icon />
+        </span>
+        <span className="sr-only">Open turn into menu</span>
+      </RoomDropdownMenuTrigger>
+      <RoomDropdownMenuContent
+        align="start"
+        className="ignore-click-outside/toolbar min-w-0"
+        sideOffset={8}
+      >
+        <RoomToolbarMenuGroup
+          label="Turn into"
+          onValueChange={(nextValue) => {
+            setRoomBlockType(editor, nextValue);
+            editor.tf.focus();
+          }}
+          value={value}
+        >
+          {TURN_INTO_ITEMS.map((item) => (
+            <RoomDropdownMenuRadioItem
+              className="min-w-[190px]"
+              key={item.value}
+              value={item.value}
+            >
+              {item.icon}
+              {item.label}
+            </RoomDropdownMenuRadioItem>
+          ))}
+        </RoomToolbarMenuGroup>
+      </RoomDropdownMenuContent>
+    </RoomDropdownMenu>
   );
 }
 
-function RoomCodeBlockToolbarButton() {
-  const editor = useEditorRef();
+function RoomInsertToolbarButton() {
+  const editor = useEditorRef() as any;
+  const [open, setOpen] = useState(false);
 
   return (
-    <RoomToolbarButton
-      onClick={() => {
-        toggleCodeBlock(editor);
-      }}
-      onMouseDown={preventToolbarMouseDown}
-      tooltip="Code block"
-    >
-      <SquareCode />
-    </RoomToolbarButton>
+    <RoomDropdownMenu onOpenChange={setOpen} open={open}>
+      <RoomDropdownMenuTrigger
+        className={cn(
+          roomToolbarButtonVariants({
+            size: "sm",
+            variant: "default",
+          }),
+          open ? "bg-accent text-accent-foreground" : undefined,
+        )}
+      >
+        <PlusIcon />
+      </RoomDropdownMenuTrigger>
+      <RoomDropdownMenuContent
+        align="start"
+        className="ignore-click-outside/toolbar flex max-h-[500px] min-w-0 flex-col overflow-y-auto"
+        sideOffset={8}
+      >
+        {INSERT_GROUPS.map(({ group, items }) => (
+          <RoomToolbarMenuGroup key={group} label={group}>
+            {items.map((item) => (
+              <RoomDropdownMenuItem
+                className="min-w-[190px]"
+                key={item.value}
+                onClick={() => {
+                  if (item.value === KEYS.inlineEquation || item.value === KEYS.link) {
+                    if (item.value === KEYS.link) {
+                      const url = window.prompt("Link URL", "https://");
+                      if (!url || url.trim().length === 0) {
+                        return;
+                      }
+                      upsertLink(
+                        editor,
+                        editor?.api?.isCollapsed?.() ? { text: url, url } : { url },
+                      );
+                    } else {
+                      insertRoomInlineElement(editor, item.value);
+                    }
+                  } else {
+                    insertRoomBlock(editor, item.value);
+                  }
+                  editor.tf.focus();
+                }}
+              >
+                {item.icon}
+                {item.label}
+              </RoomDropdownMenuItem>
+            ))}
+          </RoomToolbarMenuGroup>
+        ))}
+      </RoomDropdownMenuContent>
+    </RoomDropdownMenu>
   );
 }
 
-function RoomBlockEquationToolbarButton() {
+function RoomBulletedListToolbarButton() {
   const editor = useEditorRef();
+  const [open, setOpen] = useState(false);
+  const pressed = useEditorSelector(
+    (nextEditor) =>
+      someList(nextEditor, [ListStyleType.Disc, ListStyleType.Circle, ListStyleType.Square]),
+    [],
+  );
 
   return (
-    <RoomToolbarButton
-      onClick={() => {
-        insertEquation(editor);
-      }}
-      onMouseDown={preventToolbarMouseDown}
-      tooltip="Block equation"
-    >
-      <Radical />
-    </RoomToolbarButton>
+    <RoomToolbarSplitButton pressed={open}>
+      <RoomToolbarSplitButtonPrimary
+        className={pressed ? "bg-accent text-accent-foreground" : undefined}
+        onClick={() => {
+          toggleList(editor, { listStyleType: ListStyleType.Disc });
+        }}
+      >
+        <ListIcon />
+      </RoomToolbarSplitButtonPrimary>
+      <RoomDropdownMenu onOpenChange={setOpen} open={open}>
+        <RoomDropdownMenuTrigger
+          className={cn(
+            roomDropdownArrowVariants({
+              size: "sm",
+              variant: "default",
+            }),
+            open ? "bg-accent text-accent-foreground" : undefined,
+          )}
+        >
+          <ChevronDownIcon className="size-3.5 text-muted-foreground" data-icon />
+          <span className="sr-only">Bulleted list options</span>
+        </RoomDropdownMenuTrigger>
+        <RoomDropdownMenuContent align="start" sideOffset={8}>
+          <RoomDropdownMenuGroup>
+            <RoomDropdownMenuItem
+              onClick={() => {
+                toggleList(editor, { listStyleType: ListStyleType.Disc });
+                editor.tf.focus();
+              }}
+            >
+              <div className="size-2 rounded-full border border-current bg-current" />
+              Default
+            </RoomDropdownMenuItem>
+            <RoomDropdownMenuItem
+              onClick={() => {
+                toggleList(editor, { listStyleType: ListStyleType.Circle });
+                editor.tf.focus();
+              }}
+            >
+              <div className="size-2 rounded-full border border-current" />
+              Circle
+            </RoomDropdownMenuItem>
+            <RoomDropdownMenuItem
+              onClick={() => {
+                toggleList(editor, { listStyleType: ListStyleType.Square });
+                editor.tf.focus();
+              }}
+            >
+              <div className="size-2 border border-current bg-current" />
+              Square
+            </RoomDropdownMenuItem>
+          </RoomDropdownMenuGroup>
+        </RoomDropdownMenuContent>
+      </RoomDropdownMenu>
+    </RoomToolbarSplitButton>
   );
 }
 
-function RoomInlineEquationToolbarButton() {
+function RoomNumberedListToolbarButton() {
   const editor = useEditorRef();
-
-  return (
-    <RoomToolbarButton
-      onClick={() => {
-        insertInlineEquation(editor);
-      }}
-      onMouseDown={preventToolbarMouseDown}
-      tooltip="Inline equation"
-    >
-      <Radical />
-    </RoomToolbarButton>
+  const [open, setOpen] = useState(false);
+  const pressed = useEditorSelector(
+    (nextEditor) =>
+      someList(nextEditor, [
+        ListStyleType.Decimal,
+        ListStyleType.LowerAlpha,
+        ListStyleType.UpperAlpha,
+        ListStyleType.LowerRoman,
+        ListStyleType.UpperRoman,
+      ]),
+    [],
   );
-}
-
-function RoomTableToolbarButton() {
-  const editor = useEditorRef();
 
   return (
-    <RoomToolbarButton
-      onClick={() => {
-        insertTable(editor, {
-          colCount: 3,
-          header: true,
-          rowCount: 3,
-        });
-      }}
-      onMouseDown={preventToolbarMouseDown}
-      tooltip="Insert table"
-    >
-      <Table2 />
-    </RoomToolbarButton>
+    <RoomToolbarSplitButton pressed={open}>
+      <RoomToolbarSplitButtonPrimary
+        className={pressed ? "bg-accent text-accent-foreground" : undefined}
+        onClick={() => {
+          toggleList(editor, { listStyleType: ListStyleType.Decimal });
+        }}
+      >
+        <ListOrderedIcon />
+      </RoomToolbarSplitButtonPrimary>
+      <RoomDropdownMenu onOpenChange={setOpen} open={open}>
+        <RoomDropdownMenuTrigger
+          className={cn(
+            roomDropdownArrowVariants({
+              size: "sm",
+              variant: "default",
+            }),
+            open ? "bg-accent text-accent-foreground" : undefined,
+          )}
+        >
+          <ChevronDownIcon className="size-3.5 text-muted-foreground" data-icon />
+          <span className="sr-only">Numbered list options</span>
+        </RoomDropdownMenuTrigger>
+        <RoomDropdownMenuContent align="start" sideOffset={8}>
+          <RoomDropdownMenuGroup>
+            <RoomDropdownMenuItem
+              onClick={() => {
+                toggleList(editor, { listStyleType: ListStyleType.Decimal });
+                editor.tf.focus();
+              }}
+            >
+              Decimal (1, 2, 3)
+            </RoomDropdownMenuItem>
+            <RoomDropdownMenuItem
+              onClick={() => {
+                toggleList(editor, { listStyleType: ListStyleType.LowerAlpha });
+                editor.tf.focus();
+              }}
+            >
+              Lower Alpha (a, b, c)
+            </RoomDropdownMenuItem>
+            <RoomDropdownMenuItem
+              onClick={() => {
+                toggleList(editor, { listStyleType: ListStyleType.UpperAlpha });
+                editor.tf.focus();
+              }}
+            >
+              Upper Alpha (A, B, C)
+            </RoomDropdownMenuItem>
+            <RoomDropdownMenuItem
+              onClick={() => {
+                toggleList(editor, { listStyleType: ListStyleType.LowerRoman });
+                editor.tf.focus();
+              }}
+            >
+              Lower Roman (i, ii, iii)
+            </RoomDropdownMenuItem>
+            <RoomDropdownMenuItem
+              onClick={() => {
+                toggleList(editor, { listStyleType: ListStyleType.UpperRoman });
+                editor.tf.focus();
+              }}
+            >
+              Upper Roman (I, II, III)
+            </RoomDropdownMenuItem>
+          </RoomDropdownMenuGroup>
+        </RoomDropdownMenuContent>
+      </RoomDropdownMenu>
+    </RoomToolbarSplitButton>
   );
 }
 
@@ -249,27 +529,166 @@ function RoomLinkToolbarButton() {
         upsertLink(editor, editor?.api?.isCollapsed?.() ? { text: url, url } : { url });
       }}
       onMouseDown={preventToolbarMouseDown}
-      tooltip="Insert link"
+      tooltip="Link"
     >
-      <Link />
+      <Link2Icon />
     </RoomToolbarButton>
   );
 }
 
-export function RoomFixedToolbar(props: React.ComponentProps<"div">) {
+function RoomTableToolbarButton() {
+  const editor = useEditorRef();
+
+  return (
+    <RoomToolbarButton
+      onClick={() => {
+        insertTable(
+          editor,
+          {
+            colCount: 3,
+            header: true,
+            rowCount: 3,
+          },
+          { select: true },
+        );
+      }}
+      onMouseDown={preventToolbarMouseDown}
+      tooltip="Table"
+    >
+      <Table2Icon />
+    </RoomToolbarButton>
+  );
+}
+
+function RoomCodeBlockToolbarButton() {
+  const editor = useEditorRef();
+
+  return (
+    <RoomToolbarButton
+      onClick={() => {
+        toggleCodeBlock(editor);
+      }}
+      onMouseDown={preventToolbarMouseDown}
+      tooltip="Code"
+    >
+      <FileCode2Icon />
+    </RoomToolbarButton>
+  );
+}
+
+function RoomBlockEquationToolbarButton() {
+  const editor = useEditorRef();
+
+  return (
+    <RoomToolbarButton
+      onClick={() => {
+        insertEquation(editor);
+      }}
+      onMouseDown={preventToolbarMouseDown}
+      tooltip="Block equation"
+    >
+      <RadicalIcon />
+    </RoomToolbarButton>
+  );
+}
+
+function RoomInlineEquationToolbarButton() {
+  const editor = useEditorRef();
+
+  return (
+    <RoomToolbarButton
+      onClick={() => {
+        insertInlineEquation(editor);
+      }}
+      onMouseDown={preventToolbarMouseDown}
+      tooltip="Inline equation"
+    >
+      <RadicalIcon />
+    </RoomToolbarButton>
+  );
+}
+
+function RoomMoreToolbarButton() {
+  const editor = useEditorRef() as any;
+  const [open, setOpen] = useState(false);
+
+  return (
+    <RoomDropdownMenu onOpenChange={setOpen} open={open}>
+      <RoomDropdownMenuTrigger
+        className={cn(
+          roomToolbarButtonVariants({
+            size: "sm",
+            variant: "default",
+          }),
+          open ? "bg-accent text-accent-foreground" : undefined,
+        )}
+      >
+        <MoreHorizontalIcon />
+      </RoomDropdownMenuTrigger>
+      <RoomDropdownMenuContent
+        align="start"
+        className="ignore-click-outside/toolbar flex min-w-[180px] flex-col"
+        sideOffset={8}
+      >
+        <RoomDropdownMenuGroup>
+          <RoomDropdownMenuItem
+            onClick={() => {
+              insertRoomBlock(editor, ROOM_MERMAID_BLOCK);
+              editor.tf.focus();
+            }}
+          >
+            <Code2Icon />
+            Mermaid diagram
+          </RoomDropdownMenuItem>
+          <RoomDropdownMenuItem
+            onClick={() => {
+              insertEquation(editor);
+              editor.tf.focus();
+            }}
+          >
+            <RadicalIcon />
+            Block equation
+          </RoomDropdownMenuItem>
+          <RoomDropdownMenuItem
+            onClick={() => {
+              insertInlineEquation(editor);
+              editor.tf.focus();
+            }}
+          >
+            <RadicalIcon />
+            Inline equation
+          </RoomDropdownMenuItem>
+          <RoomDropdownMenuItem
+            onClick={() => {
+              const url = window.prompt("Link URL", "https://");
+              if (!url || url.trim().length === 0) {
+                return;
+              }
+              upsertLink(editor, editor?.api?.isCollapsed?.() ? { text: url, url } : { url });
+              editor.tf.focus();
+            }}
+          >
+            <Link2Icon />
+            Link
+          </RoomDropdownMenuItem>
+        </RoomDropdownMenuGroup>
+      </RoomDropdownMenuContent>
+    </RoomDropdownMenu>
+  );
+}
+
+export function RoomFixedToolbar(props: React.ComponentPropsWithoutRef<typeof RoomToolbar>) {
   const { className, ...rest } = props;
 
   return (
-    <TooltipProvider>
-      <div
-        className={cn(
-          "sticky top-0 z-20 flex items-center gap-2 border-b border-border/70 bg-background/95 px-2 py-1.5 backdrop-blur supports-backdrop-blur:bg-background/80",
-          className,
-        )}
-        data-room-plate-toolbar="fixed"
-        {...rest}
-      />
-    </TooltipProvider>
+    <RoomToolbar
+      className={cn(
+        "scrollbar-hide sticky top-0 left-0 z-20 w-full justify-between overflow-x-auto border-b border-b-border bg-background/95 p-1 backdrop-blur-sm supports-backdrop-blur:bg-background/60",
+        className,
+      )}
+      data-room-plate-toolbar="fixed"
+      {...rest}
+    />
   );
 }
 
@@ -281,64 +700,52 @@ export function RoomFixedToolbarButtons() {
   }
 
   return (
-    <div className="flex w-full items-center gap-2 overflow-x-auto">
+    <div className="flex w-full">
       <RoomToolbarGroup>
-        <RoomToggleBlockButton tooltip="Heading 1" type="h1">
-          <Heading1 />
-        </RoomToggleBlockButton>
-        <RoomToggleBlockButton tooltip="Heading 2" type="h2">
-          <Heading2 />
-        </RoomToggleBlockButton>
-        <RoomToggleBlockButton tooltip="Heading 3" type="h3">
-          <Heading3 />
-        </RoomToggleBlockButton>
-        <RoomToggleBlockButton tooltip="Quote" type="blockquote">
-          <Quote />
-        </RoomToggleBlockButton>
+        <RoomUndoToolbarButton />
+        <RoomRedoToolbarButton />
       </RoomToolbarGroup>
 
-      <Separator className="h-5" orientation="vertical" />
+      <RoomToolbarGroup>
+        <RoomInsertToolbarButton />
+        <RoomTurnIntoToolbarButton />
+      </RoomToolbarGroup>
 
       <RoomToolbarGroup>
         <RoomMarkToolbarButton nodeType={KEYS.bold} tooltip="Bold">
-          <Bold />
+          <BoldIcon />
         </RoomMarkToolbarButton>
         <RoomMarkToolbarButton nodeType={KEYS.italic} tooltip="Italic">
-          <Italic />
+          <ItalicIcon />
         </RoomMarkToolbarButton>
         <RoomMarkToolbarButton nodeType={KEYS.strikethrough} tooltip="Strikethrough">
-          <Strikethrough />
+          <StrikethroughIcon />
         </RoomMarkToolbarButton>
-        <RoomMarkToolbarButton nodeType={KEYS.code} tooltip="Inline code">
-          <Code2 />
+        <RoomMarkToolbarButton nodeType={KEYS.code} tooltip="Code">
+          <Code2Icon />
         </RoomMarkToolbarButton>
       </RoomToolbarGroup>
 
-      <Separator className="h-5" orientation="vertical" />
-
       <RoomToolbarGroup>
-        <RoomListToolbarButton nodeType={ListStyleType.Disc} tooltip="Bulleted list">
-          <List />
-        </RoomListToolbarButton>
-        <RoomListToolbarButton nodeType={ListStyleType.Decimal} tooltip="Numbered list">
-          <ListOrdered />
-        </RoomListToolbarButton>
+        <RoomBulletedListToolbarButton />
+        <RoomNumberedListToolbarButton />
         <RoomTodoToolbarButton />
       </RoomToolbarGroup>
 
-      <Separator className="h-5" orientation="vertical" />
-
       <RoomToolbarGroup>
         <RoomCodeBlockToolbarButton />
-        <RoomBlockEquationToolbarButton />
         <RoomTableToolbarButton />
         <RoomLinkToolbarButton />
+      </RoomToolbarGroup>
+
+      <RoomToolbarGroup>
+        <RoomMoreToolbarButton />
       </RoomToolbarGroup>
     </div>
   );
 }
 
-export function RoomFloatingToolbar(props: React.ComponentProps<"div">) {
+export function RoomFloatingToolbar(props: React.ComponentPropsWithoutRef<typeof RoomToolbar>) {
   const { children, className, ...rest } = props;
   const editorId = useEditorId();
   const focusedEditorId = useEventEditorValue("focus");
@@ -368,22 +775,20 @@ export function RoomFloatingToolbar(props: React.ComponentProps<"div">) {
   }
 
   return (
-    <TooltipProvider>
-      <div ref={clickOutsideRef}>
-        <div
-          {...rootProps}
-          {...rest}
-          ref={floatingRef}
-          className={cn(
-            "absolute z-50 flex max-w-[80vw] items-center gap-2 rounded-lg border border-border/70 bg-background/96 px-2 py-1.5 shadow-lg backdrop-blur supports-backdrop-blur:bg-background/88",
-            className,
-          )}
-          data-room-plate-toolbar="floating"
-        >
-          {children}
-        </div>
-      </div>
-    </TooltipProvider>
+    <div ref={clickOutsideRef}>
+      <RoomToolbar
+        {...rootProps}
+        {...rest}
+        className={cn(
+          "scrollbar-hide absolute z-50 max-w-[80vw] overflow-x-auto whitespace-nowrap rounded-md border bg-popover p-1 shadow-md print:hidden",
+          className,
+        )}
+        data-room-plate-toolbar="floating"
+        ref={floatingRef}
+      >
+        {children}
+      </RoomToolbar>
+    </div>
   );
 }
 
@@ -397,25 +802,26 @@ export function RoomFloatingToolbarButtons() {
   return (
     <>
       <RoomToolbarGroup>
+        <RoomTurnIntoToolbarButton />
         <RoomMarkToolbarButton nodeType={KEYS.bold} tooltip="Bold">
-          <Bold />
+          <BoldIcon />
         </RoomMarkToolbarButton>
         <RoomMarkToolbarButton nodeType={KEYS.italic} tooltip="Italic">
-          <Italic />
+          <ItalicIcon />
         </RoomMarkToolbarButton>
         <RoomMarkToolbarButton nodeType={KEYS.strikethrough} tooltip="Strikethrough">
-          <Strikethrough />
+          <StrikethroughIcon />
         </RoomMarkToolbarButton>
-        <RoomMarkToolbarButton nodeType={KEYS.code} tooltip="Inline code">
-          <Code2 />
+        <RoomMarkToolbarButton nodeType={KEYS.code} tooltip="Code">
+          <Code2Icon />
         </RoomMarkToolbarButton>
-      </RoomToolbarGroup>
-
-      <Separator className="h-5" orientation="vertical" />
-
-      <RoomToolbarGroup>
         <RoomInlineEquationToolbarButton />
         <RoomLinkToolbarButton />
+      </RoomToolbarGroup>
+
+      <RoomToolbarGroup>
+        <RoomBlockEquationToolbarButton />
+        <RoomMoreToolbarButton />
       </RoomToolbarGroup>
     </>
   );
