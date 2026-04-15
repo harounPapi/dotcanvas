@@ -1843,7 +1843,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
-  it("renders room markdown lists without duplicate visible markers in the editor text", async () => {
+  it("renders room markdown lists with internal markers inside the editor body", async () => {
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,
       snapshot: createSnapshotForTargetUser({
@@ -1864,7 +1864,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
 1. First ordered item
 2. Second ordered item
 
-- First bullet item
+- First bullet item that is deliberately long so it wraps inside the document body instead of hanging from an outside browser marker gutter.
 - Second bullet item
 `;
 
@@ -1895,16 +1895,141 @@ describe("ChatView timeline estimator parity (full app)", () => {
           const editorSurface = roomPane?.querySelector<HTMLElement>(
             '[data-room-markdown-editor="rich"]',
           );
-          const listItems = Array.from(editorSurface?.querySelectorAll("li") ?? []).map((element) =>
-            element.textContent?.trim(),
-          );
+          const editorRect = editorSurface?.getBoundingClientRect();
+          const standardListItems = Array.from(
+            editorSurface?.querySelectorAll<HTMLElement>(".room-plate-list-item") ?? [],
+          ).map((element) => {
+            const marker = element.querySelector<HTMLElement>(".room-plate-list-marker");
+            const content = element.lastElementChild as HTMLElement | null;
 
-          expect(listItems).toEqual([
-            "First ordered item",
-            "Second ordered item",
-            "First bullet item",
-            "Second bullet item",
+            return {
+              contentLeft: content?.getBoundingClientRect().left ?? 0,
+              marker: marker?.getAttribute("data-room-list-marker") ?? null,
+              markerLeft: marker?.getBoundingClientRect().left ?? 0,
+              text: content?.textContent?.trim() ?? "",
+            };
+          });
+          const firstStandardListItem =
+            editorSurface?.querySelector<HTMLElement>(".room-plate-list-item");
+
+          expect(standardListItems).toEqual([
+            {
+              contentLeft: expect.any(Number),
+              marker: "1.",
+              markerLeft: expect.any(Number),
+              text: "First ordered item",
+            },
+            {
+              contentLeft: expect.any(Number),
+              marker: "2.",
+              markerLeft: expect.any(Number),
+              text: "Second ordered item",
+            },
+            {
+              contentLeft: expect.any(Number),
+              marker: "•",
+              markerLeft: expect.any(Number),
+              text: "First bullet item that is deliberately long so it wraps inside the document body instead of hanging from an outside browser marker gutter.",
+            },
+            {
+              contentLeft: expect.any(Number),
+              marker: "•",
+              markerLeft: expect.any(Number),
+              text: "Second bullet item",
+            },
           ]);
+          expect(editorRect).not.toBeNull();
+          expect(firstStandardListItem && getComputedStyle(firstStandardListItem).display).toBe(
+            "grid",
+          );
+          expect(
+            standardListItems.every(
+              (item) =>
+                item.markerLeft >= (editorRect?.left ?? 0) &&
+                item.markerLeft < item.contentLeft &&
+                item.contentLeft > (editorRect?.left ?? 0),
+            ),
+          ).toBe(true);
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("keeps nested room lists indented inside the editor body and todo rows marker-free", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-nested-lists" as MessageId,
+        targetText: "room nested list rendering",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "README.md", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (body._tag === WS_METHODS.projectsReadFile) {
+          const contents = `# Nested Lists
+
+- Parent bullet item
+  - Nested bullet item
+- [ ] Todo item
+`;
+
+          return {
+            relativePath: "README.md",
+            contents,
+            sizeBytes: contents.length,
+            mtimeMs: 12,
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const fileTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("README.md"),
+          ) ?? null,
+        "Unable to find README.md in the Room tree.",
+      );
+      fileTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          const roomPane = document.querySelector<HTMLElement>('[data-room-file-pane="true"]');
+          const editorSurface = roomPane?.querySelector<HTMLElement>(
+            '[data-room-markdown-editor="rich"]',
+          );
+          const todoItem = editorSurface?.querySelector<HTMLElement>(".room-plate-todo-item");
+          const standardListItems = Array.from(
+            editorSurface?.querySelectorAll<HTMLElement>(".room-plate-list-item") ?? [],
+          ).map((element) => ({
+            marker: element.querySelector<HTMLElement>(".room-plate-list-marker"),
+            text: element.lastElementChild?.textContent?.trim() ?? "",
+          }));
+          const parentMarker = standardListItems.find(
+            (item) => item.text === "Parent bullet item",
+          )?.marker;
+          const nestedMarker = standardListItems.find(
+            (item) => item.text === "Nested bullet item",
+          )?.marker;
+          const todoMarker = todoItem?.querySelector(".room-plate-list-marker");
+
+          expect(parentMarker).not.toBeNull();
+          expect(nestedMarker).not.toBeNull();
+          expect(nestedMarker!.getBoundingClientRect().left).toBeGreaterThan(
+            parentMarker!.getBoundingClientRect().left,
+          );
+          expect(todoItem).not.toBeNull();
+          expect(todoMarker).toBeNull();
         },
         { timeout: 8_000, interval: 16 },
       );
