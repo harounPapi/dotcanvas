@@ -35,6 +35,21 @@ function registerListener<T>(listeners: Set<(event: T) => void>, listener: (even
 const terminalEventListeners = new Set<(event: TerminalEvent) => void>();
 const orchestrationEventListeners = new Set<(event: OrchestrationEvent) => void>();
 const gitStatusListeners = new Set<(event: GitStatusResult) => void>();
+const workspaceChangeListeners = new Set<
+  (
+    event:
+      | {
+          _tag: "pathChanged";
+          relativePath: string;
+          exists: boolean;
+          entryKind?: "file" | "directory";
+        }
+      | {
+          _tag: "directoryInvalidated";
+          directoryPath?: string;
+        },
+  ) => void
+>();
 
 const rpcClientMock = {
   dispose: vi.fn(),
@@ -53,6 +68,25 @@ const rpcClientMock = {
     bootstrapStart: vi.fn(),
     createDirectory: vi.fn(),
     listDirectory: vi.fn(),
+    onWorkspaceChange: vi.fn(
+      (
+        _input: { cwd: string; directoryPaths?: string[]; selectedFilePath?: string },
+        listener: (
+          event:
+            | {
+                _tag: "pathChanged";
+                relativePath: string;
+                exists: boolean;
+                entryKind?: "file" | "directory";
+              }
+            | {
+                _tag: "directoryInvalidated";
+                directoryPath?: string;
+              },
+        ) => void,
+      ) => registerListener(workspaceChangeListeners, listener),
+    ),
+    readFile: vi.fn(),
     searchEntries: vi.fn(),
     statPath: vi.fn(),
     writeFile: vi.fn(),
@@ -64,6 +98,7 @@ const rpcClientMock = {
   shell: {
     openInEditor: vi.fn(),
     openInProjectApp: vi.fn(),
+    revealInFileManager: vi.fn(),
   },
   git: {
     pull: vi.fn(),
@@ -205,6 +240,7 @@ beforeEach(() => {
   terminalEventListeners.clear();
   orchestrationEventListeners.clear();
   gitStatusListeners.clear();
+  workspaceChangeListeners.clear();
   Reflect.deleteProperty(getWindowForTest(), "desktopBridge");
 });
 
@@ -275,6 +311,33 @@ describe("wsNativeApi", () => {
 
     expect(onTerminalEvent).toHaveBeenCalledWith(terminalEvent);
     expect(onDomainEvent).toHaveBeenCalledWith(orchestrationEvent);
+  });
+
+  it("forwards workspace change stream events", async () => {
+    const { createWsNativeApi } = await import("./wsNativeApi");
+
+    const api = createWsNativeApi();
+    const onWorkspaceChange = vi.fn();
+
+    api.projects.onWorkspaceChange(
+      { cwd: "/tmp/workspace", directoryPaths: ["src"] },
+      onWorkspaceChange,
+    );
+
+    const event = {
+      _tag: "pathChanged" as const,
+      relativePath: "src/index.ts",
+      exists: true,
+      entryKind: "file" as const,
+    };
+    emitEvent(workspaceChangeListeners, event);
+
+    expect(rpcClientMock.projects.onWorkspaceChange).toHaveBeenCalledWith(
+      { cwd: "/tmp/workspace", directoryPaths: ["src"] },
+      expect.any(Function),
+      undefined,
+    );
+    expect(onWorkspaceChange).toHaveBeenCalledWith(event);
   });
 
   it("forwards git status stream events", async () => {
@@ -442,6 +505,34 @@ describe("wsNativeApi", () => {
     });
   });
 
+  it("forwards project file reads to the project RPC", async () => {
+    rpcClientMock.projects.readFile.mockResolvedValue({
+      relativePath: "DotCanvas/memory.md",
+      contents: "# Memory\n",
+      sizeBytes: 9,
+      mtimeMs: 123,
+    });
+    const { createWsNativeApi } = await import("./wsNativeApi");
+
+    const api = createWsNativeApi();
+    await expect(
+      api.projects.readFile({
+        cwd: "/tmp/project",
+        relativePath: "DotCanvas/memory.md",
+      }),
+    ).resolves.toEqual({
+      relativePath: "DotCanvas/memory.md",
+      contents: "# Memory\n",
+      sizeBytes: 9,
+      mtimeMs: 123,
+    });
+
+    expect(rpcClientMock.projects.readFile).toHaveBeenCalledWith({
+      cwd: "/tmp/project",
+      relativePath: "DotCanvas/memory.md",
+    });
+  });
+
   it("forwards project path stat requests to the project RPC", async () => {
     rpcClientMock.projects.statPath.mockResolvedValue({
       relativePath: "DotCanvas/project-brief.md",
@@ -465,6 +556,22 @@ describe("wsNativeApi", () => {
     expect(rpcClientMock.projects.statPath).toHaveBeenCalledWith({
       cwd: "/tmp/project",
       relativePath: "DotCanvas/project-brief.md",
+    });
+  });
+
+  it("forwards reveal-in-file-manager requests to the shell RPC", async () => {
+    rpcClientMock.shell.revealInFileManager.mockResolvedValue(undefined);
+    const { createWsNativeApi } = await import("./wsNativeApi");
+
+    const api = createWsNativeApi();
+    await expect(
+      api.shell.revealInFileManager({
+        path: "/tmp/project/DotCanvas/memory.md",
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(rpcClientMock.shell.revealInFileManager).toHaveBeenCalledWith({
+      path: "/tmp/project/DotCanvas/memory.md",
     });
   });
 

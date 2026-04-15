@@ -8,7 +8,7 @@
  */
 import { spawn } from "node:child_process";
 import { accessSync, constants, statSync } from "node:fs";
-import { extname, join } from "node:path";
+import { dirname, extname, join } from "node:path";
 
 import {
   EDITORS,
@@ -16,6 +16,7 @@ import {
   PROJECT_APPS,
   type EditorId,
   type ProjectAppId,
+  type RevealInFileManagerInput,
 } from "@t3tools/contracts";
 import { ServiceMap, Effect, Layer } from "effect";
 
@@ -34,6 +35,8 @@ export interface OpenInProjectAppInput {
   readonly cwd: string;
   readonly app: ProjectAppId;
 }
+
+export interface RevealInFileManagerLaunchInput extends RevealInFileManagerInput {}
 
 interface CommandLaunch {
   readonly command: string;
@@ -255,6 +258,13 @@ export interface OpenShape {
    * Launches the app as a detached process so server startup is not blocked.
    */
   readonly openInProjectApp: (input: OpenInProjectAppInput) => Effect.Effect<void, OpenError>;
+
+  /**
+   * Reveal a file path in the system file manager.
+   */
+  readonly revealInFileManager: (
+    input: RevealInFileManagerLaunchInput,
+  ) => Effect.Effect<void, OpenError>;
 }
 
 /**
@@ -312,6 +322,27 @@ export const resolveProjectAppLaunch = Effect.fn("resolveProjectAppLaunch")(func
   };
 });
 
+export const resolveRevealInFileManagerLaunch = Effect.fn("resolveRevealInFileManagerLaunch")(
+  function* (
+    input: RevealInFileManagerLaunchInput,
+    platform: NodeJS.Platform = process.platform,
+  ): Effect.fn.Return<CommandLaunch, OpenError> {
+    yield* Effect.annotateCurrentSpan({
+      "open.reveal.path": input.path,
+      "open.platform": platform,
+    });
+
+    switch (platform) {
+      case "darwin":
+        return { command: "open", args: ["-R", input.path] };
+      case "win32":
+        return { command: "explorer", args: ["/select,", input.path] };
+      default:
+        return { command: fileManagerCommandForPlatform(platform), args: [dirname(input.path)] };
+    }
+  },
+);
+
 export const launchDetached = (launch: CommandLaunch) =>
   Effect.gen(function* () {
     if (!isCommandAvailable(launch.command)) {
@@ -358,6 +389,8 @@ const make = Effect.gen(function* () {
       }),
     openInEditor: (input) => Effect.flatMap(resolveEditorLaunch(input), launchDetached),
     openInProjectApp: (input) => Effect.flatMap(resolveProjectAppLaunch(input), launchDetached),
+    revealInFileManager: (input) =>
+      Effect.flatMap(resolveRevealInFileManagerLaunch(input), launchDetached),
   } satisfies OpenShape;
 });
 

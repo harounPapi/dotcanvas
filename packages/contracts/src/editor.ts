@@ -37,6 +37,11 @@ export const OpenInEditorInput = Schema.Struct({
 });
 export type OpenInEditorInput = typeof OpenInEditorInput.Type;
 
+export const RevealInFileManagerInput = Schema.Struct({
+  path: TrimmedNonEmptyString,
+});
+export type RevealInFileManagerInput = typeof RevealInFileManagerInput.Type;
+
 export class OpenError extends Schema.TaggedErrorClass<OpenError>()("OpenError", {
   message: Schema.String,
   cause: Schema.optional(Schema.Defect),

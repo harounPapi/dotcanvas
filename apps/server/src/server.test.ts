@@ -90,8 +90,13 @@ import {
   type ProjectSetupScriptRunnerShape,
 } from "./project/Services/ProjectSetupScriptRunner.ts";
 import { WorkspaceEntriesLive } from "./workspace/Layers/WorkspaceEntries.ts";
+import { WorkspaceChangeBroadcasterLive } from "./workspace/Layers/WorkspaceChangeBroadcaster.ts";
 import { WorkspaceFileSystemLive } from "./workspace/Layers/WorkspaceFileSystem.ts";
 import { WorkspacePathsLive } from "./workspace/Layers/WorkspacePaths.ts";
+import {
+  WorkspaceChangeBroadcaster,
+  type WorkspaceChangeBroadcasterShape,
+} from "./workspace/Services/WorkspaceChangeBroadcaster.ts";
 
 const defaultProjectId = ProjectId.makeUnsafe("project-default");
 const defaultThreadId = ThreadId.makeUnsafe("thread-default");
@@ -151,6 +156,7 @@ const makeDefaultOrchestrationReadModel = () => {
 const workspaceAndProjectServicesLayer = Layer.mergeAll(
   WorkspacePathsLive,
   WorkspaceEntriesLive.pipe(Layer.provide(WorkspacePathsLive)),
+  WorkspaceChangeBroadcasterLive.pipe(Layer.provide(WorkspacePathsLive)),
   WorkspaceFileSystemLive.pipe(
     Layer.provide(WorkspacePathsLive),
     Layer.provide(WorkspaceEntriesLive.pipe(Layer.provide(WorkspacePathsLive))),
@@ -280,6 +286,7 @@ const buildAppUnderTest = (options?: {
     projectionSnapshotQuery?: Partial<ProjectionSnapshotQueryShape>;
     checkpointDiffQuery?: Partial<CheckpointDiffQueryShape>;
     capabilityCatalog?: Partial<CapabilityCatalogShape>;
+    workspaceChangeBroadcaster?: Partial<WorkspaceChangeBroadcasterShape>;
     browserTraceCollector?: Partial<BrowserTraceCollectorShape>;
     serverLifecycleEvents?: Partial<ServerLifecycleEventsShape>;
     serverRuntimeStartup?: Partial<ServerRuntimeStartupShape>;
@@ -405,6 +412,12 @@ const buildAppUnderTest = (options?: {
               diff: "",
             }),
           ...options?.layers?.checkpointDiffQuery,
+        }),
+      ),
+      Layer.provide(
+        Layer.mock(WorkspaceChangeBroadcaster)({
+          streamChanges: () => Stream.empty,
+          ...options?.layers?.workspaceChangeBroadcaster,
         }),
       ),
       Layer.provide(
@@ -1092,6 +1105,38 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 
+  it.effect("routes websocket rpc subscribeProjectWorkspaceChanges streams workspace events", () =>
+    Effect.gen(function* () {
+      const changeEvent = {
+        _tag: "pathChanged" as const,
+        relativePath: "README.md",
+        exists: true,
+        entryKind: "file" as const,
+      };
+
+      yield* buildAppUnderTest({
+        layers: {
+          workspaceChangeBroadcaster: {
+            streamChanges: () => Stream.succeed(changeEvent),
+          },
+        },
+      });
+
+      const wsUrl = yield* getWsServerUrl("/ws");
+      const events = yield* Effect.scoped(
+        withWsRpcClient(wsUrl, (client) =>
+          client[WS_METHODS.subscribeProjectWorkspaceChanges]({
+            cwd: "/tmp/project",
+            directoryPaths: ["src"],
+            selectedFilePath: "README.md",
+          }).pipe(Stream.take(1), Stream.runCollect),
+        ),
+      );
+
+      assert.deepEqual(Array.from(events), [changeEvent]);
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
   it.effect(
     "routes websocket rpc subscribeServerLifecycle replays snapshot and streams updates",
     () =>
@@ -1249,6 +1294,60 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       assertTrue(result._tag === "Failure");
       assertTrue(result.failure._tag === "ProjectListDirectoryError");
       assertInclude(result.failure.message, "Path is not a directory: src/index.ts");
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
+  it.effect("routes websocket rpc projects.readFile", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const workspaceDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-ws-project-read-" });
+      yield* fs.makeDirectory(path.join(workspaceDir, "DotCanvas"), { recursive: true });
+      yield* fs.writeFileString(path.join(workspaceDir, "DotCanvas", "memory.md"), "# Memory\n");
+
+      yield* buildAppUnderTest();
+
+      const wsUrl = yield* getWsServerUrl("/ws");
+      const response = yield* Effect.scoped(
+        withWsRpcClient(wsUrl, (client) =>
+          client[WS_METHODS.projectsReadFile]({
+            cwd: workspaceDir,
+            relativePath: "DotCanvas/memory.md",
+          }),
+        ),
+      );
+
+      assert.equal(response.relativePath, "DotCanvas/memory.md");
+      assert.equal(response.contents, "# Memory\n");
+      assert.equal(response.sizeBytes > 0, true);
+      assert.equal(response.mtimeMs > 0, true);
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
+  it.effect("routes websocket rpc projects.readFile errors", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const workspaceDir = yield* fs.makeTempDirectoryScoped({
+        prefix: "t3-ws-project-read-errors-",
+      });
+      yield* fs.makeDirectory(path.join(workspaceDir, "DotCanvas"), { recursive: true });
+
+      yield* buildAppUnderTest();
+
+      const wsUrl = yield* getWsServerUrl("/ws");
+      const result = yield* Effect.scoped(
+        withWsRpcClient(wsUrl, (client) =>
+          client[WS_METHODS.projectsReadFile]({
+            cwd: workspaceDir,
+            relativePath: "DotCanvas",
+          }),
+        ).pipe(Effect.result),
+      );
+
+      assertTrue(result._tag === "Failure");
+      assertTrue(result.failure._tag === "ProjectReadFileError");
+      assertInclude(result.failure.message, "Path is not a file: DotCanvas");
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 
@@ -1413,6 +1512,33 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 
+  it.effect("routes websocket rpc shell.revealInFileManager", () =>
+    Effect.gen(function* () {
+      let revealedInput: { path: string } | null = null;
+      yield* buildAppUnderTest({
+        layers: {
+          open: {
+            revealInFileManager: (input) =>
+              Effect.sync(() => {
+                revealedInput = input;
+              }),
+          },
+        },
+      });
+
+      const wsUrl = yield* getWsServerUrl("/ws");
+      yield* Effect.scoped(
+        withWsRpcClient(wsUrl, (client) =>
+          client[WS_METHODS.shellRevealInFileManager]({
+            path: "/tmp/project/README.md",
+          }),
+        ),
+      );
+
+      assert.deepEqual(revealedInput, { path: "/tmp/project/README.md" });
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
   it.effect("routes websocket rpc shell.openInEditor errors", () =>
     Effect.gen(function* () {
       const openError = new OpenError({ message: "Editor command not found: cursor" });
@@ -1455,6 +1581,30 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
           client[WS_METHODS.shellOpenInProjectApp]({
             cwd: "/tmp/project",
             app: "obsidian",
+          }),
+        ).pipe(Effect.result),
+      );
+
+      assertFailure(result, openError);
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
+  it.effect("routes websocket rpc shell.revealInFileManager errors", () =>
+    Effect.gen(function* () {
+      const openError = new OpenError({ message: "Editor command not found: explorer" });
+      yield* buildAppUnderTest({
+        layers: {
+          open: {
+            revealInFileManager: () => Effect.fail(openError),
+          },
+        },
+      });
+
+      const wsUrl = yield* getWsServerUrl("/ws");
+      const result = yield* Effect.scoped(
+        withWsRpcClient(wsUrl, (client) =>
+          client[WS_METHODS.shellRevealInFileManager]({
+            path: "/tmp/project/README.md",
           }),
         ).pipe(Effect.result),
       );

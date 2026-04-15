@@ -15,8 +15,10 @@ import {
   ProjectBootstrapStartError,
   ProjectCreateDirectoryError,
   ProjectListDirectoryError,
+  ProjectReadFileError,
   ProjectSearchEntriesError,
   ProjectStatPathError,
+  ProjectWorkspaceWatchError,
   ProjectWriteFileError,
   ProjectId,
   OrchestrationReplayEventsError,
@@ -55,7 +57,11 @@ import { ServerRuntimeStartup } from "./serverRuntimeStartup";
 import { ServerSettingsService } from "./serverSettings";
 import { TerminalManager } from "./terminal/Services/Manager";
 import { WorkspaceEntries } from "./workspace/Services/WorkspaceEntries";
-import { WorkspaceFileSystem } from "./workspace/Services/WorkspaceFileSystem";
+import { WorkspaceChangeBroadcaster } from "./workspace/Services/WorkspaceChangeBroadcaster";
+import {
+  WorkspaceFileSystem,
+  WorkspaceFileSystemWriteConflictError,
+} from "./workspace/Services/WorkspaceFileSystem";
 import { WorkspacePathOutsideRootError } from "./workspace/Services/WorkspacePaths";
 import { ProjectSetupScriptRunner } from "./project/Services/ProjectSetupScriptRunner";
 
@@ -77,6 +83,7 @@ const WsRpcLayer = WsRpcGroup.toLayer(
     const serverSettings = yield* ServerSettingsService;
     const startup = yield* ServerRuntimeStartup;
     const workspaceEntries = yield* WorkspaceEntries;
+    const workspaceChangeBroadcaster = yield* WorkspaceChangeBroadcaster;
     const workspaceFileSystem = yield* WorkspaceFileSystem;
     const projectSetupScriptRunner = yield* ProjectSetupScriptRunner;
     const serverCommandId = (tag: string) =>
@@ -572,6 +579,35 @@ const WsRpcLayer = WsRpcGroup.toLayer(
           ),
           { "rpc.aggregate": "workspace" },
         ),
+      [WS_METHODS.projectsReadFile]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.projectsReadFile,
+          workspaceFileSystem.readFile(input).pipe(
+            Effect.mapError((cause) => {
+              return new ProjectReadFileError({
+                message: Schema.is(WorkspacePathOutsideRootError)(cause)
+                  ? "Workspace file path must stay within the project root."
+                  : cause.detail,
+                cause,
+              });
+            }),
+          ),
+          { "rpc.aggregate": "workspace" },
+        ),
+      [WS_METHODS.subscribeProjectWorkspaceChanges]: (input) =>
+        observeRpcStream(
+          WS_METHODS.subscribeProjectWorkspaceChanges,
+          workspaceChangeBroadcaster.streamChanges(input).pipe(
+            Stream.mapError(
+              (cause) =>
+                new ProjectWorkspaceWatchError({
+                  message: `Failed to watch workspace changes: ${cause.detail}`,
+                  cause,
+                }),
+            ),
+          ),
+          { "rpc.aggregate": "workspace" },
+        ),
       [WS_METHODS.projectsBootstrapStart]: (input) =>
         observeRpcEffect(
           WS_METHODS.projectsBootstrapStart,
@@ -684,7 +720,9 @@ const WsRpcLayer = WsRpcGroup.toLayer(
             Effect.mapError((cause) => {
               const message = Schema.is(WorkspacePathOutsideRootError)(cause)
                 ? "Workspace file path must stay within the project root."
-                : "Failed to write workspace file";
+                : Schema.is(WorkspaceFileSystemWriteConflictError)(cause)
+                  ? cause.message
+                  : cause.detail;
               return new ProjectWriteFileError({
                 message,
                 cause,
@@ -711,6 +749,10 @@ const WsRpcLayer = WsRpcGroup.toLayer(
         }),
       [WS_METHODS.shellOpenInProjectApp]: (input) =>
         observeRpcEffect(WS_METHODS.shellOpenInProjectApp, open.openInProjectApp(input), {
+          "rpc.aggregate": "workspace",
+        }),
+      [WS_METHODS.shellRevealInFileManager]: (input) =>
+        observeRpcEffect(WS_METHODS.shellRevealInFileManager, open.revealInFileManager(input), {
           "rpc.aggregate": "workspace",
         }),
       [WS_METHODS.subscribeGitStatus]: (input) =>

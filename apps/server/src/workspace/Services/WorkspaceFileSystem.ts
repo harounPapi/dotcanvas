@@ -12,6 +12,8 @@ import type { Effect } from "effect";
 import type {
   ProjectCreateDirectoryInput,
   ProjectCreateDirectoryResult,
+  ProjectReadFileInput,
+  ProjectReadFileResult,
   ProjectStatPathInput,
   ProjectStatPathResult,
   ProjectWriteFileInput,
@@ -29,6 +31,20 @@ export class WorkspaceFileSystemError extends Schema.TaggedErrorClass<WorkspaceF
     cause: Schema.optional(Schema.Defect),
   },
 ) {}
+
+export class WorkspaceFileSystemWriteConflictError extends Schema.TaggedErrorClass<WorkspaceFileSystemWriteConflictError>()(
+  "WorkspaceFileSystemWriteConflictError",
+  {
+    cwd: Schema.String,
+    relativePath: Schema.String,
+    expectedMtimeMs: Schema.Int,
+    actualMtimeMs: Schema.optional(Schema.Int),
+  },
+) {
+  override get message(): string {
+    return "Workspace file was modified on disk.";
+  }
+}
 
 /**
  * WorkspaceFileSystemShape - Service API for workspace-relative file operations.
@@ -55,6 +71,16 @@ export interface WorkspaceFileSystemShape {
   >;
 
   /**
+   * Read a text file relative to the workspace root.
+   */
+  readonly readFile: (
+    input: ProjectReadFileInput,
+  ) => Effect.Effect<
+    ProjectReadFileResult,
+    WorkspaceFileSystemError | WorkspacePathOutsideRootError
+  >;
+
+  /**
    * Write a file relative to the workspace root.
    *
    * Creates parent directories as needed and rejects paths that escape the
@@ -64,7 +90,7 @@ export interface WorkspaceFileSystemShape {
     input: ProjectWriteFileInput,
   ) => Effect.Effect<
     ProjectWriteFileResult,
-    WorkspaceFileSystemError | WorkspacePathOutsideRootError
+    WorkspaceFileSystemError | WorkspaceFileSystemWriteConflictError | WorkspacePathOutsideRootError
   >;
 }
 

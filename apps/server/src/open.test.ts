@@ -9,6 +9,7 @@ import {
   resolveAvailableEditors,
   resolveAvailableProjectApps,
   resolveEditorLaunch,
+  resolveRevealInFileManagerLaunch,
   resolveProjectAppLaunch,
 } from "./open";
 
@@ -224,6 +225,39 @@ it.layer(NodeServices.layer)("resolveProjectAppLaunch", (it) => {
       });
       assert.deepEqual(obsidianLaunch, {
         command: "obsidian",
+        args: ["/tmp/workspace"],
+      });
+    }),
+  );
+});
+
+it.layer(NodeServices.layer)("resolveRevealInFileManagerLaunch", (it) => {
+  it.effect("maps reveal commands per platform", () =>
+    Effect.gen(function* () {
+      const darwinLaunch = yield* resolveRevealInFileManagerLaunch(
+        { path: "/tmp/workspace/README.md" },
+        "darwin",
+      );
+      assert.deepEqual(darwinLaunch, {
+        command: "open",
+        args: ["-R", "/tmp/workspace/README.md"],
+      });
+
+      const windowsLaunch = yield* resolveRevealInFileManagerLaunch(
+        { path: "C:\\workspace\\README.md" },
+        "win32",
+      );
+      assert.deepEqual(windowsLaunch, {
+        command: "explorer",
+        args: ["/select,", "C:\\workspace\\README.md"],
+      });
+
+      const linuxLaunch = yield* resolveRevealInFileManagerLaunch(
+        { path: "/tmp/workspace/README.md" },
+        "linux",
+      );
+      assert.deepEqual(linuxLaunch, {
+        command: "xdg-open",
         args: ["/tmp/workspace"],
       });
     }),

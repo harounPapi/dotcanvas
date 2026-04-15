@@ -2,6 +2,7 @@ import type {
   GitStatusLocalResult,
   GitStatusRemoteResult,
   GitStatusStreamEvent,
+  ProjectWorkspaceChangeEvent,
 } from "@t3tools/contracts";
 import { describe, expect, it, vi } from "vitest";
 
@@ -64,6 +65,85 @@ describe("wsRpcClient", () => {
       truncated: false,
     });
     expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it("forwards project file read requests through the websocket transport", async () => {
+    const request: WsTransport["request"] = vi.fn(async <TSuccess>() => {
+      return {
+        relativePath: "README.md",
+        contents: "# Readme\n",
+        sizeBytes: 9,
+        mtimeMs: 123,
+      } as TSuccess;
+    }) as WsTransport["request"];
+    const transport = {
+      dispose: vi.fn(async () => undefined),
+      reconnect: vi.fn(async () => undefined),
+      request,
+      requestStream: vi.fn(),
+      subscribe: vi.fn(),
+    } satisfies Pick<
+      WsTransport,
+      "dispose" | "reconnect" | "request" | "requestStream" | "subscribe"
+    >;
+
+    const client = createWsRpcClient(transport as unknown as WsTransport);
+    const result = await client.projects.readFile({
+      cwd: "/repo",
+      relativePath: "README.md",
+    });
+
+    expect(result).toEqual({
+      relativePath: "README.md",
+      contents: "# Readme\n",
+      sizeBytes: 9,
+      mtimeMs: 123,
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it("forwards workspace change subscriptions through the websocket transport", () => {
+    const subscribe = vi.fn(
+      <TValue>(_connect: unknown, listener: (value: TValue) => void, _options?: unknown) => {
+        listener({
+          _tag: "pathChanged",
+          relativePath: "README.md",
+          exists: true,
+          entryKind: "file",
+        } as TValue);
+        return () => undefined;
+      },
+    );
+    const transport = {
+      dispose: vi.fn(async () => undefined),
+      reconnect: vi.fn(async () => undefined),
+      request: vi.fn(),
+      requestStream: vi.fn(),
+      subscribe,
+    } satisfies Pick<
+      WsTransport,
+      "dispose" | "reconnect" | "request" | "requestStream" | "subscribe"
+    >;
+
+    const client = createWsRpcClient(transport as unknown as WsTransport);
+    const listener = vi.fn<(event: ProjectWorkspaceChangeEvent) => void>();
+
+    client.projects.onWorkspaceChange(
+      {
+        cwd: "/repo",
+        directoryPaths: ["src"],
+        selectedFilePath: "README.md",
+      },
+      listener,
+    );
+
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledWith({
+      _tag: "pathChanged",
+      relativePath: "README.md",
+      exists: true,
+      entryKind: "file",
+    });
   });
 
   it("reduces git status stream events into flat status snapshots", () => {

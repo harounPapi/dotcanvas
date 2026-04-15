@@ -1,11 +1,12 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it, describe, expect } from "@effect/vitest";
-import { Effect, FileSystem, Layer, Path } from "effect";
+import { Effect, FileSystem, Layer, Option, Path } from "effect";
 
 import { ServerConfig } from "../../config.ts";
 import { GitCoreLive } from "../../git/Layers/GitCore.ts";
 import { WorkspaceEntries } from "../Services/WorkspaceEntries.ts";
-import { WorkspaceFileSystem } from "../Services/WorkspaceFileSystem.ts";
+import { WorkspaceFileSystem, WorkspaceFileSystemError } from "../Services/WorkspaceFileSystem.ts";
+import { WorkspacePathOutsideRootError } from "../Services/WorkspacePaths.ts";
 import { WorkspaceEntriesLive } from "./WorkspaceEntries.ts";
 import { WorkspaceFileSystemLive } from "./WorkspaceFileSystem.ts";
 import { WorkspacePathsLive } from "./WorkspacePaths.ts";
@@ -48,6 +49,10 @@ const writeTextFile = Effect.fn("writeTextFile")(function* (
     .pipe(Effect.orDie);
   yield* fileSystem.writeFileString(absolutePath, contents).pipe(Effect.orDie);
 });
+
+function detailOf(error: WorkspaceFileSystemError | WorkspacePathOutsideRootError): string {
+  return "detail" in error ? error.detail : error.message;
+}
 
 it.layer(TestLayer)("WorkspaceFileSystemLive", (it) => {
   describe("createDirectory", () => {
@@ -196,6 +201,37 @@ it.layer(TestLayer)("WorkspaceFileSystemLive", (it) => {
         expect(escapedStat).toBeNull();
       }),
     );
+
+    it.effect("rejects writes when the file changed on disk", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        const relativePath = "notes/plan.md";
+        const absolutePath = path.join(cwd, relativePath);
+
+        yield* writeTextFile(cwd, relativePath, "# First\n");
+        const initialStat = yield* fileSystem.stat(absolutePath).pipe(Effect.orDie);
+        const initialMtimeMs = Math.trunc(
+          Option.getOrElse(initialStat.mtime, () => new Date(0)).getTime(),
+        );
+        const staleExpectedMtimeMs = initialMtimeMs > 0 ? initialMtimeMs - 1 : initialMtimeMs + 1;
+
+        yield* fileSystem.writeFileString(absolutePath, "# Second\n").pipe(Effect.orDie);
+
+        const error = yield* workspaceFileSystem
+          .writeFile({
+            cwd,
+            relativePath,
+            contents: "# Third\n",
+            expectedMtimeMs: staleExpectedMtimeMs,
+          })
+          .pipe(Effect.flip);
+
+        expect(error.message).toBe("Workspace file was modified on disk.");
+      }),
+    );
   });
 
   describe("statPath", () => {
@@ -242,6 +278,70 @@ it.layer(TestLayer)("WorkspaceFileSystemLive", (it) => {
           relativePath: "DotCanvas/memory.md",
           exists: false,
         });
+      }),
+    );
+  });
+
+  describe("readFile", () => {
+    it.effect("reads text files with metadata", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+
+        yield* writeTextFile(cwd, "notes/plan.md", "# Plan\n");
+
+        const result = yield* workspaceFileSystem.readFile({
+          cwd,
+          relativePath: "notes/plan.md",
+        });
+
+        expect(result.relativePath).toBe("notes/plan.md");
+        expect(result.contents).toBe("# Plan\n");
+        expect(result.sizeBytes).toBeGreaterThan(0);
+        expect(result.mtimeMs).toBeGreaterThan(0);
+      }),
+    );
+
+    it.effect("rejects directories, oversized files, and binary files", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+
+        yield* fileSystem
+          .makeDirectory(path.join(cwd, "notes"), { recursive: true })
+          .pipe(Effect.orDie);
+        yield* fileSystem
+          .writeFileString(path.join(cwd, "notes", "large.md"), "a".repeat(600_000))
+          .pipe(Effect.orDie);
+        yield* fileSystem
+          .writeFile(path.join(cwd, "notes", "binary.md"), Uint8Array.from([0, 159, 146, 150]))
+          .pipe(Effect.orDie);
+
+        const directoryError = yield* workspaceFileSystem
+          .readFile({
+            cwd,
+            relativePath: "notes",
+          })
+          .pipe(Effect.flip);
+        expect(detailOf(directoryError)).toContain("Path is not a file");
+
+        const largeError = yield* workspaceFileSystem
+          .readFile({
+            cwd,
+            relativePath: "notes/large.md",
+          })
+          .pipe(Effect.flip);
+        expect(detailOf(largeError)).toContain("File is too large to open in Room");
+
+        const binaryError = yield* workspaceFileSystem
+          .readFile({
+            cwd,
+            relativePath: "notes/binary.md",
+          })
+          .pipe(Effect.flip);
+        expect(detailOf(binaryError)).toContain("File is not valid UTF-8 text");
       }),
     );
   });

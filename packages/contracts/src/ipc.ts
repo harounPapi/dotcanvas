@@ -31,8 +31,12 @@ import type {
   ProjectCreateDirectoryResult,
   ProjectListDirectoryInput,
   ProjectListDirectoryResult,
+  ProjectReadFileInput,
+  ProjectReadFileResult,
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
+  ProjectWorkspaceChangeEvent,
+  ProjectWorkspaceWatchInput,
   ProjectStatPathInput,
   ProjectStatPathResult,
   ProjectWriteFileInput,
@@ -63,7 +67,7 @@ import type {
   OrchestrationEvent,
   OrchestrationReadModel,
 } from "./orchestration";
-import { EditorId } from "./editor";
+import { EditorId, RevealInFileManagerInput } from "./editor";
 import { ProjectAppId } from "./projectApp";
 import { ServerSettings, ServerSettingsPatch } from "./settings";
 
@@ -156,6 +160,14 @@ export interface NativeApi {
     bootstrapStart: (input: ProjectBootstrapStartInput) => Promise<ProjectBootstrapStartResult>;
     createDirectory: (input: ProjectCreateDirectoryInput) => Promise<ProjectCreateDirectoryResult>;
     listDirectory: (input: ProjectListDirectoryInput) => Promise<ProjectListDirectoryResult>;
+    onWorkspaceChange: (
+      input: ProjectWorkspaceWatchInput,
+      callback: (event: ProjectWorkspaceChangeEvent) => void,
+      options?: {
+        onResubscribe?: () => void;
+      },
+    ) => () => void;
+    readFile: (input: ProjectReadFileInput) => Promise<ProjectReadFileResult>;
     searchEntries: (input: ProjectSearchEntriesInput) => Promise<ProjectSearchEntriesResult>;
     statPath: (input: ProjectStatPathInput) => Promise<ProjectStatPathResult>;
     writeFile: (input: ProjectWriteFileInput) => Promise<ProjectWriteFileResult>;
@@ -167,6 +179,7 @@ export interface NativeApi {
   shell: {
     openInEditor: (cwd: string, editor: EditorId) => Promise<void>;
     openInProjectApp: (cwd: string, app: ProjectAppId) => Promise<void>;
+    revealInFileManager: (input: RevealInFileManagerInput) => Promise<void>;
     openExternal: (url: string) => Promise<void>;
   };
   git: {

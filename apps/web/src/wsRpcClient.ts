@@ -6,6 +6,7 @@ import {
   type GitStatusStreamEvent,
   type NativeApi,
   ORCHESTRATION_WS_METHODS,
+  type ProjectWorkspaceChangeEvent,
   type ServerSettingsPatch,
   WS_METHODS,
 } from "@t3tools/contracts";
@@ -59,6 +60,12 @@ export interface WsRpcClient {
     readonly bootstrapStart: RpcUnaryMethod<typeof WS_METHODS.projectsBootstrapStart>;
     readonly createDirectory: RpcUnaryMethod<typeof WS_METHODS.projectsCreateDirectory>;
     readonly listDirectory: RpcUnaryMethod<typeof WS_METHODS.projectsListDirectory>;
+    readonly onWorkspaceChange: (
+      input: RpcInput<typeof WS_METHODS.subscribeProjectWorkspaceChanges>,
+      listener: (event: ProjectWorkspaceChangeEvent) => void,
+      options?: StreamSubscriptionOptions,
+    ) => () => void;
+    readonly readFile: RpcUnaryMethod<typeof WS_METHODS.projectsReadFile>;
     readonly searchEntries: RpcUnaryMethod<typeof WS_METHODS.projectsSearchEntries>;
     readonly statPath: RpcUnaryMethod<typeof WS_METHODS.projectsStatPath>;
     readonly writeFile: RpcUnaryMethod<typeof WS_METHODS.projectsWriteFile>;
@@ -76,6 +83,9 @@ export interface WsRpcClient {
       readonly cwd: Parameters<NativeApi["shell"]["openInProjectApp"]>[0];
       readonly app: Parameters<NativeApi["shell"]["openInProjectApp"]>[1];
     }) => ReturnType<NativeApi["shell"]["openInProjectApp"]>;
+    readonly revealInFileManager: (
+      input: Parameters<NativeApi["shell"]["revealInFileManager"]>[0],
+    ) => ReturnType<NativeApi["shell"]["revealInFileManager"]>;
   };
   readonly git: {
     readonly pull: RpcUnaryMethod<typeof WS_METHODS.gitPull>;
@@ -164,6 +174,14 @@ export function createWsRpcClient(transport = new WsTransport()): WsRpcClient {
         transport.request((client) => client[WS_METHODS.projectsCreateDirectory](input)),
       listDirectory: (input) =>
         transport.request((client) => client[WS_METHODS.projectsListDirectory](input)),
+      onWorkspaceChange: (input, listener, options) =>
+        transport.subscribe(
+          (client) => client[WS_METHODS.subscribeProjectWorkspaceChanges](input),
+          listener,
+          options,
+        ),
+      readFile: (input) =>
+        transport.request((client) => client[WS_METHODS.projectsReadFile](input)),
       searchEntries: (input) =>
         transport.request((client) => client[WS_METHODS.projectsSearchEntries](input)),
       statPath: (input) =>
@@ -182,6 +200,8 @@ export function createWsRpcClient(transport = new WsTransport()): WsRpcClient {
         transport.request((client) => client[WS_METHODS.shellOpenInEditor](input)),
       openInProjectApp: (input) =>
         transport.request((client) => client[WS_METHODS.shellOpenInProjectApp](input)),
+      revealInFileManager: (input) =>
+        transport.request((client) => client[WS_METHODS.shellRevealInFileManager](input)),
     },
     git: {
       pull: (input) => transport.request((client) => client[WS_METHODS.gitPull](input)),

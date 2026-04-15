@@ -10,7 +10,7 @@ import {
   CapabilitySearchResult,
   PluginBundleResult,
 } from "./capabilities";
-import { OpenError, OpenInEditorInput } from "./editor";
+import { OpenError, OpenInEditorInput, RevealInFileManagerInput } from "./editor";
 import { OpenInProjectAppInput } from "./projectApp";
 import {
   GitActionProgressEvent,
@@ -63,9 +63,15 @@ import {
   ProjectListDirectoryError,
   ProjectListDirectoryInput,
   ProjectListDirectoryResult,
+  ProjectReadFileError,
+  ProjectReadFileInput,
+  ProjectReadFileResult,
   ProjectSearchEntriesError,
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
+  ProjectWorkspaceChangeEvent,
+  ProjectWorkspaceWatchError,
+  ProjectWorkspaceWatchInput,
   ProjectStatPathError,
   ProjectStatPathInput,
   ProjectStatPathResult,
@@ -102,6 +108,7 @@ export const WS_METHODS = {
   projectsBootstrapStart: "projects.bootstrapStart",
   projectsCreateDirectory: "projects.createDirectory",
   projectsListDirectory: "projects.listDirectory",
+  projectsReadFile: "projects.readFile",
   projectsSearchEntries: "projects.searchEntries",
   projectsStatPath: "projects.statPath",
   projectsWriteFile: "projects.writeFile",
@@ -111,6 +118,7 @@ export const WS_METHODS = {
   // Shell methods
   shellOpenInEditor: "shell.openInEditor",
   shellOpenInProjectApp: "shell.openInProjectApp",
+  shellRevealInFileManager: "shell.revealInFileManager",
 
   // Git methods
   gitPull: "git.pull",
@@ -142,6 +150,7 @@ export const WS_METHODS = {
 
   // Streaming subscriptions
   subscribeGitStatus: "subscribeGitStatus",
+  subscribeProjectWorkspaceChanges: "subscribeProjectWorkspaceChanges",
   subscribeOrchestrationDomainEvents: "subscribeOrchestrationDomainEvents",
   subscribeTerminalEvents: "subscribeTerminalEvents",
   subscribeServerConfig: "subscribeServerConfig",
@@ -187,6 +196,12 @@ export const WsProjectsListDirectoryRpc = Rpc.make(WS_METHODS.projectsListDirect
   payload: ProjectListDirectoryInput,
   success: ProjectListDirectoryResult,
   error: ProjectListDirectoryError,
+});
+
+export const WsProjectsReadFileRpc = Rpc.make(WS_METHODS.projectsReadFile, {
+  payload: ProjectReadFileInput,
+  success: ProjectReadFileResult,
+  error: ProjectReadFileError,
 });
 
 export const WsProjectsCreateDirectoryRpc = Rpc.make(WS_METHODS.projectsCreateDirectory, {
@@ -235,12 +250,27 @@ export const WsShellOpenInProjectAppRpc = Rpc.make(WS_METHODS.shellOpenInProject
   error: OpenError,
 });
 
+export const WsShellRevealInFileManagerRpc = Rpc.make(WS_METHODS.shellRevealInFileManager, {
+  payload: RevealInFileManagerInput,
+  error: OpenError,
+});
+
 export const WsSubscribeGitStatusRpc = Rpc.make(WS_METHODS.subscribeGitStatus, {
   payload: GitStatusInput,
   success: GitStatusStreamEvent,
   error: GitManagerServiceError,
   stream: true,
 });
+
+export const WsSubscribeProjectWorkspaceChangesRpc = Rpc.make(
+  WS_METHODS.subscribeProjectWorkspaceChanges,
+  {
+    payload: ProjectWorkspaceWatchInput,
+    success: ProjectWorkspaceChangeEvent,
+    error: ProjectWorkspaceWatchError,
+    stream: true,
+  },
+);
 
 export const WsGitPullRpc = Rpc.make(WS_METHODS.gitPull, {
   payload: GitPullInput,
@@ -412,6 +442,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsProjectsBootstrapStartRpc,
   WsProjectsCreateDirectoryRpc,
   WsProjectsListDirectoryRpc,
+  WsProjectsReadFileRpc,
   WsProjectsSearchEntriesRpc,
   WsProjectsStatPathRpc,
   WsProjectsWriteFileRpc,
@@ -419,7 +450,9 @@ export const WsRpcGroup = RpcGroup.make(
   WsCapabilitiesReadPluginBundleRpc,
   WsShellOpenInEditorRpc,
   WsShellOpenInProjectAppRpc,
+  WsShellRevealInFileManagerRpc,
   WsSubscribeGitStatusRpc,
+  WsSubscribeProjectWorkspaceChangesRpc,
   WsGitPullRpc,
   WsGitRefreshStatusRpc,
   WsGitRunStackedActionRpc,

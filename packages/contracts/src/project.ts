@@ -1,9 +1,16 @@
 import { Schema } from "effect";
-import { PositiveInt, ProjectId, ThreadId, TrimmedNonEmptyString } from "./baseSchemas";
+import {
+  NonNegativeInt,
+  PositiveInt,
+  ProjectId,
+  ThreadId,
+  TrimmedNonEmptyString,
+} from "./baseSchemas";
 
 const PROJECT_SEARCH_ENTRIES_MAX_LIMIT = 200;
 const PROJECT_WRITE_FILE_PATH_MAX_LENGTH = 512;
 const PROJECT_DIRECTORY_NAME_MAX_LENGTH = 255;
+export const PROJECT_READ_FILE_MAX_BYTES = 512 * 1024;
 
 export const ProjectSearchEntriesInput = Schema.Struct({
   cwd: TrimmedNonEmptyString,
@@ -62,6 +69,7 @@ export const ProjectWriteFileInput = Schema.Struct({
   cwd: TrimmedNonEmptyString,
   relativePath: TrimmedNonEmptyString.check(Schema.isMaxLength(PROJECT_WRITE_FILE_PATH_MAX_LENGTH)),
   contents: Schema.String,
+  expectedMtimeMs: Schema.optional(NonNegativeInt),
 });
 export type ProjectWriteFileInput = typeof ProjectWriteFileInput.Type;
 
@@ -72,6 +80,70 @@ export type ProjectWriteFileResult = typeof ProjectWriteFileResult.Type;
 
 export class ProjectWriteFileError extends Schema.TaggedErrorClass<ProjectWriteFileError>()(
   "ProjectWriteFileError",
+  {
+    message: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect),
+  },
+) {}
+
+export const ProjectReadFileInput = Schema.Struct({
+  cwd: TrimmedNonEmptyString,
+  relativePath: TrimmedNonEmptyString.check(Schema.isMaxLength(PROJECT_WRITE_FILE_PATH_MAX_LENGTH)),
+});
+export type ProjectReadFileInput = typeof ProjectReadFileInput.Type;
+
+export const ProjectReadFileResult = Schema.Struct({
+  relativePath: TrimmedNonEmptyString,
+  contents: Schema.String,
+  sizeBytes: NonNegativeInt,
+  mtimeMs: NonNegativeInt,
+});
+export type ProjectReadFileResult = typeof ProjectReadFileResult.Type;
+
+export class ProjectReadFileError extends Schema.TaggedErrorClass<ProjectReadFileError>()(
+  "ProjectReadFileError",
+  {
+    message: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect),
+  },
+) {}
+
+export const ProjectWorkspaceWatchInput = Schema.Struct({
+  cwd: TrimmedNonEmptyString,
+  directoryPaths: Schema.optional(
+    Schema.Array(
+      TrimmedNonEmptyString.check(Schema.isMaxLength(PROJECT_WRITE_FILE_PATH_MAX_LENGTH)),
+    ),
+  ),
+  selectedFilePath: Schema.optional(
+    TrimmedNonEmptyString.check(Schema.isMaxLength(PROJECT_WRITE_FILE_PATH_MAX_LENGTH)),
+  ),
+});
+export type ProjectWorkspaceWatchInput = typeof ProjectWorkspaceWatchInput.Type;
+
+export const ProjectWorkspacePathChangedEvent = Schema.Struct({
+  _tag: Schema.Literal("pathChanged"),
+  relativePath: TrimmedNonEmptyString,
+  exists: Schema.Boolean,
+  entryKind: Schema.optional(ProjectEntryKind),
+});
+export type ProjectWorkspacePathChangedEvent = typeof ProjectWorkspacePathChangedEvent.Type;
+
+export const ProjectWorkspaceDirectoryInvalidatedEvent = Schema.Struct({
+  _tag: Schema.Literal("directoryInvalidated"),
+  directoryPath: Schema.optional(TrimmedNonEmptyString),
+});
+export type ProjectWorkspaceDirectoryInvalidatedEvent =
+  typeof ProjectWorkspaceDirectoryInvalidatedEvent.Type;
+
+export const ProjectWorkspaceChangeEvent = Schema.Union([
+  ProjectWorkspacePathChangedEvent,
+  ProjectWorkspaceDirectoryInvalidatedEvent,
+]);
+export type ProjectWorkspaceChangeEvent = typeof ProjectWorkspaceChangeEvent.Type;
+
+export class ProjectWorkspaceWatchError extends Schema.TaggedErrorClass<ProjectWorkspaceWatchError>()(
+  "ProjectWorkspaceWatchError",
   {
     message: TrimmedNonEmptyString,
     cause: Schema.optional(Schema.Defect),
