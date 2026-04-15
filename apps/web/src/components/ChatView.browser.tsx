@@ -699,10 +699,26 @@ function resolveWsRpc(body: NormalizedWsRpcRequestBody): unknown {
       truncated: false,
     };
   }
+  if (tag === WS_METHODS.projectsReadFile) {
+    return {
+      relativePath: typeof body.relativePath === "string" ? body.relativePath : "",
+      contents: "# Room File\n",
+      sizeBytes: 12,
+      mtimeMs: 1,
+    };
+  }
+  if (tag === WS_METHODS.projectsWriteFile) {
+    return {
+      relativePath: typeof body.relativePath === "string" ? body.relativePath : "",
+    };
+  }
   if (tag === WS_METHODS.shellOpenInEditor) {
     return null;
   }
   if (tag === WS_METHODS.shellOpenInProjectApp) {
+    return null;
+  }
+  if (tag === WS_METHODS.shellRevealInFileManager) {
     return null;
   }
   if (tag === WS_METHODS.terminalOpen) {
@@ -1545,16 +1561,26 @@ describe("ChatView timeline estimator parity (full app)", () => {
         { timeout: 8_000, interval: 16 },
       );
 
-      const expandButton = document.querySelector<HTMLButtonElement>(
-        'button[aria-label="Expand src"]',
-      );
-      expect(expandButton).not.toBeNull();
-      expandButton?.click();
+      const srcFolderItem = Array.from(
+        document.querySelectorAll<HTMLElement>('[role="treeitem"][aria-expanded]'),
+      ).find((element) => element.textContent?.includes("src"));
+      expect(srcFolderItem).not.toBeNull();
+      srcFolderItem?.click();
 
       await vi.waitFor(
         () => {
+          expect(srcFolderItem?.getAttribute("aria-expanded")).toBe("true");
           expect(document.body.textContent).toContain("components");
           expect(document.body.textContent).toContain("index.ts");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      srcFolderItem?.click();
+
+      await vi.waitFor(
+        () => {
+          expect(srcFolderItem?.getAttribute("aria-expanded")).toBe("false");
         },
         { timeout: 8_000, interval: 16 },
       );
@@ -1563,7 +1589,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
-  it("uses the project root as the room tree root even when a worktree is present", async () => {
+  it("uses the worktree root as the room tree root when a worktree is present", async () => {
     const listDirectoryCalls: Array<{ cwd: string; directoryPath?: string }> = [];
     const snapshot = createSnapshotForTargetUser({
       targetMessageId: "msg-user-room-tree-worktree" as MessageId,
@@ -1602,7 +1628,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
       await vi.waitFor(
         () => {
           expect(listDirectoryCalls).toContainEqual({
-            cwd: "/repo/project",
+            cwd: "/repo/worktrees/feature-room",
           });
           expect(document.body.textContent).toContain("src");
         },
@@ -1689,6 +1715,834 @@ describe("ChatView timeline estimator parity (full app)", () => {
         () => document.querySelector('button[aria-label="Stacked diff view"]'),
         "Unable to find restored diff view toggle.",
       );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("renders supported room markdown in the rich room editor without raw markdown markers", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-markdown" as MessageId,
+        targetText: "room markdown file",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "README.md", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (body._tag === WS_METHODS.projectsReadFile) {
+          return {
+            relativePath: "README.md",
+            contents:
+              "# Project README\n\nThis note powers the Room editor.\n\n```js\nconsole.log('preview');\n```\n\n$$\nx+1\n$$\n\n```mermaid\ngraph TD\n  Room-->Editor\n```\n",
+            sizeBytes: 144,
+            mtimeMs: 10,
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const fileTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("README.md"),
+          ) ?? null,
+        "Unable to find README.md in the Room tree.",
+      );
+      fileTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          const breadcrumbs = document.querySelector<HTMLElement>(
+            '[aria-label="Room file breadcrumbs"]',
+          );
+          expect(breadcrumbs?.textContent).toContain("project");
+          expect(breadcrumbs?.textContent).toContain("README.md");
+          expect(document.querySelector('[data-room-markdown-surface="true"]')).toBeTruthy();
+          expect(document.querySelector('[data-room-markdown-mode="rich"]')).toBeTruthy();
+          expect(document.querySelector('[data-room-markdown-editor="rich"]')).toBeTruthy();
+          expect(document.body.textContent).not.toContain("# Project README");
+          expect(document.body.textContent).toContain("Project README");
+          expect(document.body.textContent).toContain("This note powers the Room editor.");
+          expect(document.body.textContent).not.toContain("```js");
+          expect(document.body.textContent).toContain("console.log('preview');");
+          expect(document.body.textContent).not.toContain("$$");
+          expect(document.body.textContent).toContain("x+1");
+          expect(document.querySelector('button[aria-label="Edit equation source"]')).toBeTruthy();
+          expect(document.querySelector('button[aria-label="Edit mermaid source"]')).toBeTruthy();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("renders room markdown lists without duplicate visible markers in the editor text", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-lists" as MessageId,
+        targetText: "room list rendering",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "README.md", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (body._tag === WS_METHODS.projectsReadFile) {
+          const contents = `# Lists
+
+1. First ordered item
+2. Second ordered item
+
+- First bullet item
+- Second bullet item
+`;
+
+          return {
+            relativePath: "README.md",
+            contents,
+            sizeBytes: contents.length,
+            mtimeMs: 12,
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const fileTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("README.md"),
+          ) ?? null,
+        "Unable to find README.md in the Room tree.",
+      );
+      fileTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          const roomPane = document.querySelector<HTMLElement>('[data-room-file-pane="true"]');
+          const editorSurface = roomPane?.querySelector<HTMLElement>(
+            '[data-room-markdown-editor="rich"]',
+          );
+          const listItems = Array.from(editorSurface?.querySelectorAll("li") ?? []).map((element) =>
+            element.textContent?.trim(),
+          );
+
+          expect(listItems).toEqual([
+            "First ordered item",
+            "Second ordered item",
+            "First bullet item",
+            "Second bullet item",
+          ]);
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("keeps markdown files with standalone HTML blocks in the rich room editor", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-html-blocks" as MessageId,
+        targetText: "room html blocks",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "README.md", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (body._tag === WS_METHODS.projectsReadFile) {
+          const contents = `# HTML note
+
+<div class="callout"><strong>Preserved HTML</strong></div>
+`;
+
+          return {
+            relativePath: "README.md",
+            contents,
+            sizeBytes: contents.length,
+            mtimeMs: 13,
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const fileTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("README.md"),
+          ) ?? null,
+        "Unable to find README.md in the Room tree.",
+      );
+      fileTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(document.querySelector('[data-room-markdown-mode="rich"]')).toBeTruthy();
+          expect(document.body.textContent).not.toContain(
+            "Editing raw Markdown to preserve HTML blocks.",
+          );
+          expect(document.querySelector('[data-room-html-block="true"]')).toBeTruthy();
+          expect(document.body.textContent).toContain("Preserved HTML");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("keeps reference-style markdown links in the rich room editor", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-link-reference" as MessageId,
+        targetText: "room link reference",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "README.md", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (body._tag === WS_METHODS.projectsReadFile) {
+          const contents = `# Reference Links
+
+[Guide][guide]
+
+[guide]: docs/guide.md
+`;
+
+          return {
+            relativePath: "README.md",
+            contents,
+            sizeBytes: contents.length,
+            mtimeMs: 14,
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const fileTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("README.md"),
+          ) ?? null,
+        "Unable to find README.md in the Room tree.",
+      );
+      fileTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(document.querySelector('[data-room-markdown-mode="rich"]')).toBeTruthy();
+          expect(document.body.textContent).not.toContain("Editing raw Markdown to preserve");
+          expect(document.body.textContent).toContain("Guide");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("falls back to raw markdown mode for unsupported markdown files", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-raw-fallback" as MessageId,
+        targetText: "room raw fallback",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "README.md", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (body._tag === WS_METHODS.projectsReadFile) {
+          const contents = "# README\n\n![diagram](diagram.png)\n";
+          return {
+            relativePath: "README.md",
+            contents,
+            sizeBytes: contents.length,
+            mtimeMs: 4,
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const fileTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("README.md"),
+          ) ?? null,
+        "Unable to find README.md in the Room tree.",
+      );
+      fileTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(document.querySelector('[data-room-markdown-mode="raw"]')).toBeTruthy();
+          expect(document.querySelector('[data-room-markdown-editor="raw"]')).toBeTruthy();
+          expect(document.body.textContent).toContain("Editing raw Markdown to preserve images.");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("shows the unsupported empty state and reveals non-markdown files in Finder", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-unsupported" as MessageId,
+        targetText: "room unsupported file",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "package.json", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const fileTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("package.json"),
+          ) ?? null,
+        "Unable to find package.json in the Room tree.",
+      );
+      fileTreeItem.click();
+
+      const openInFinderButton = await waitForButtonByText("Open in Finder");
+      openInFinderButton.click();
+
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("This document isn’t supported here yet");
+          expect(wsRequests).toContainEqual({
+            _tag: WS_METHODS.shellRevealInFileManager,
+            path: "/repo/project/package.json",
+          });
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("saves markdown edits from the rich Room surface and keeps folder clicks from replacing the file pane", async () => {
+    let fileContents = "# README\n\nInitial note.\n";
+    let fileMtimeMs = 1;
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-save" as MessageId,
+        targetText: "room save file",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          if (body.directoryPath === "docs") {
+            return {
+              entries: [{ path: "docs/guide.md", kind: "file" as const, parentPath: "docs" }],
+              truncated: false,
+            };
+          }
+
+          return {
+            entries: [
+              { path: "README.md", kind: "file" as const },
+              { path: "docs", kind: "directory" as const },
+            ],
+            truncated: false,
+          };
+        }
+        if (body._tag === WS_METHODS.projectsReadFile && body.relativePath === "README.md") {
+          return {
+            relativePath: "README.md",
+            contents: fileContents,
+            sizeBytes: fileContents.length,
+            mtimeMs: fileMtimeMs,
+          };
+        }
+        if (body._tag === WS_METHODS.projectsWriteFile && body.relativePath === "README.md") {
+          fileContents = typeof body.contents === "string" ? body.contents : fileContents;
+          fileMtimeMs += 1;
+          return {
+            relativePath: "README.md",
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const readmeTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("README.md"),
+          ) ?? null,
+        "Unable to find README.md in the Room tree.",
+      );
+      readmeTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("Initial note.");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const richEditor = page.getByRole("textbox", { name: "Room rich markdown editor" });
+      await richEditor.fill("Project README\n\nInitial note. Updated");
+
+      const docsFolderItem = await waitForElement(
+        () =>
+          Array.from(
+            document.querySelectorAll<HTMLElement>('[role="treeitem"][aria-expanded]'),
+          ).find((element) => element.textContent?.includes("docs")) ?? null,
+        "Unable to find docs in the Room tree.",
+      );
+      docsFolderItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(docsFolderItem.getAttribute("aria-expanded")).toBe("true");
+          const breadcrumbs = document.querySelector<HTMLElement>(
+            '[aria-label="Room file breadcrumbs"]',
+          );
+          expect(breadcrumbs?.textContent).toContain("README.md");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const saveButton = await waitForElement(
+        () => document.querySelector<HTMLButtonElement>('button[aria-label="Save room file"]'),
+        "Unable to find the Room save button.",
+      );
+      saveButton.click();
+
+      await vi.waitFor(
+        () => {
+          const writeRequest = wsRequests.findLast(
+            (request) => request._tag === WS_METHODS.projectsWriteFile,
+          ) as
+            | {
+                _tag: string;
+                relativePath?: string;
+                contents?: string;
+                expectedMtimeMs?: number;
+              }
+            | undefined;
+          expect(writeRequest?.relativePath).toBe("README.md");
+          expect(writeRequest?.expectedMtimeMs).toBe(1);
+          expect(writeRequest?.contents).toContain("Initial note. Updated");
+          expect(document.body.textContent).toContain("Saved");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("auto-refreshes a clean selected markdown file after an external workspace change", async () => {
+    let fileContents = "# README\n\nInitial note.\n";
+    let fileMtimeMs = 1;
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-external-refresh" as MessageId,
+        targetText: "room external refresh",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "README.md", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (body._tag === WS_METHODS.projectsReadFile && body.relativePath === "README.md") {
+          return {
+            relativePath: "README.md",
+            contents: fileContents,
+            sizeBytes: fileContents.length,
+            mtimeMs: fileMtimeMs,
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const readmeTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("README.md"),
+          ) ?? null,
+        "Unable to find README.md in the Room tree.",
+      );
+      readmeTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("Initial note.");
+          expect(
+            wsRequests.find(
+              (request) =>
+                request._tag === WS_METHODS.subscribeProjectWorkspaceChanges &&
+                request.selectedFilePath === "README.md",
+            ),
+          ).toBeTruthy();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      fileContents = "# README\n\nChanged outside Room.\n";
+      fileMtimeMs = 2;
+      rpcHarness.emitStreamValue(WS_METHODS.subscribeProjectWorkspaceChanges, {
+        _tag: "pathChanged",
+        relativePath: "README.md",
+        exists: true,
+        entryKind: "file",
+      });
+
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("Changed outside Room.");
+          expect(document.body.textContent).not.toContain("Initial note.");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("keeps a dirty draft and shows a conflict banner after an external workspace change", async () => {
+    let fileContents = "# README\n\nInitial note.\n";
+    let fileMtimeMs = 1;
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-external-conflict" as MessageId,
+        targetText: "room external conflict",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "README.md", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (body._tag === WS_METHODS.projectsReadFile && body.relativePath === "README.md") {
+          return {
+            relativePath: "README.md",
+            contents: fileContents,
+            sizeBytes: fileContents.length,
+            mtimeMs: fileMtimeMs,
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const readmeTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("README.md"),
+          ) ?? null,
+        "Unable to find README.md in the Room tree.",
+      );
+      readmeTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("Initial note.");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const richEditor = page.getByRole("textbox", { name: "Room rich markdown editor" });
+      await richEditor.fill("Project README\n\nMy local draft");
+
+      fileContents = "# README\n\nChanged outside Room.\n";
+      fileMtimeMs = 2;
+      rpcHarness.emitStreamValue(WS_METHODS.subscribeProjectWorkspaceChanges, {
+        _tag: "pathChanged",
+        relativePath: "README.md",
+        exists: true,
+        entryKind: "file",
+      });
+
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("File changed on disk");
+          expect(document.body.textContent).toContain("My local draft");
+          expect(document.body.textContent).not.toContain("Changed outside Room.");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("shows deleted selected files as recreatable drafts after an external delete", async () => {
+    let fileContents = "# README\n\nInitial note.\n";
+    let fileMtimeMs = 1;
+    let fileExists = true;
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-external-delete" as MessageId,
+        targetText: "room external delete",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "README.md", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (body._tag === WS_METHODS.projectsReadFile && body.relativePath === "README.md") {
+          if (!fileExists) {
+            return Promise.reject(new Error("File does not exist: README.md"));
+          }
+          return {
+            relativePath: "README.md",
+            contents: fileContents,
+            sizeBytes: fileContents.length,
+            mtimeMs: fileMtimeMs,
+          };
+        }
+        if (body._tag === WS_METHODS.projectsWriteFile && body.relativePath === "README.md") {
+          fileContents = typeof body.contents === "string" ? body.contents : fileContents;
+          fileMtimeMs += 1;
+          fileExists = true;
+          return {
+            relativePath: "README.md",
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const readmeTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("README.md"),
+          ) ?? null,
+        "Unable to find README.md in the Room tree.",
+      );
+      readmeTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("Initial note.");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const richEditor = page.getByRole("textbox", { name: "Room rich markdown editor" });
+      await richEditor.fill("Project README\n\nRecreated from Room");
+
+      fileExists = false;
+      rpcHarness.emitStreamValue(WS_METHODS.subscribeProjectWorkspaceChanges, {
+        _tag: "pathChanged",
+        relativePath: "README.md",
+        exists: false,
+        entryKind: "file",
+      });
+
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("File deleted on disk");
+          expect(document.body.textContent).toContain("Save to recreate");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const saveToRecreateButton = await waitForButtonByText("Save to recreate");
+      saveToRecreateButton.click();
+
+      await vi.waitFor(
+        () => {
+          const writeRequest = wsRequests.findLast(
+            (request) => request._tag === WS_METHODS.projectsWriteFile,
+          ) as
+            | {
+                _tag: string;
+                relativePath?: string;
+                contents?: string;
+                expectedMtimeMs?: number;
+              }
+            | undefined;
+          expect(writeRequest?.relativePath).toBe("README.md");
+          expect(writeRequest?.expectedMtimeMs).toBeUndefined();
+          expect(writeRequest?.contents).toContain("Recreated from Room");
+          expect(document.body.textContent).toContain("Saved");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("refreshes loaded room tree directories after external changes without eagerly loading unopened folders", async () => {
+    const rootEntries: Array<{ path: string; kind: "file" | "directory"; parentPath?: string }> = [
+      { path: "README.md", kind: "file" },
+      { path: "docs", kind: "directory" },
+      { path: "src", kind: "directory" },
+    ];
+    const srcEntries: Array<{ path: string; kind: "file" | "directory"; parentPath?: string }> = [
+      { path: "src/index.ts", kind: "file", parentPath: "src" },
+    ];
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-tree-external-sync" as MessageId,
+        targetText: "room tree external sync",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag !== WS_METHODS.projectsListDirectory) {
+          return undefined;
+        }
+        if (body.directoryPath === "src") {
+          return {
+            entries: srcEntries,
+            truncated: false,
+          };
+        }
+        if (body.directoryPath === "docs") {
+          return {
+            entries: [{ path: "docs/guide.md", kind: "file" as const, parentPath: "docs" }],
+            truncated: false,
+          };
+        }
+        return {
+          entries: rootEntries,
+          truncated: false,
+        };
+      },
+    });
+
+    try {
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("src");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const srcFolderItem = await waitForElement(
+        () =>
+          Array.from(
+            document.querySelectorAll<HTMLElement>('[role="treeitem"][aria-expanded]'),
+          ).find((element) => element.textContent?.includes("src")) ?? null,
+        "Unable to find src in the Room tree.",
+      );
+      srcFolderItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(srcFolderItem.getAttribute("aria-expanded")).toBe("true");
+          expect(document.body.textContent).toContain("index.ts");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const docsRequestCountBefore = wsRequests.filter(
+        (request) =>
+          request._tag === WS_METHODS.projectsListDirectory && request.directoryPath === "docs",
+      ).length;
+
+      rootEntries.splice(1, 0, { path: "CHANGELOG.md", kind: "file" });
+      srcEntries.push({ path: "src/new.ts", kind: "file", parentPath: "src" });
+
+      rpcHarness.emitStreamValue(WS_METHODS.subscribeProjectWorkspaceChanges, {
+        _tag: "pathChanged",
+        relativePath: "CHANGELOG.md",
+        exists: true,
+        entryKind: "file",
+      });
+      rpcHarness.emitStreamValue(WS_METHODS.subscribeProjectWorkspaceChanges, {
+        _tag: "pathChanged",
+        relativePath: "src/new.ts",
+        exists: true,
+        entryKind: "file",
+      });
+      rpcHarness.emitStreamValue(WS_METHODS.subscribeProjectWorkspaceChanges, {
+        _tag: "pathChanged",
+        relativePath: "docs/new.md",
+        exists: true,
+        entryKind: "file",
+      });
+
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("CHANGELOG.md");
+          expect(document.body.textContent).toContain("new.ts");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      expect(
+        wsRequests.filter(
+          (request) =>
+            request._tag === WS_METHODS.projectsListDirectory && request.directoryPath === "docs",
+        ).length,
+      ).toBe(docsRequestCountBefore);
     } finally {
       await mounted.cleanup();
     }

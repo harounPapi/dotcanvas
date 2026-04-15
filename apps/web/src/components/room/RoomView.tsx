@@ -1,5 +1,6 @@
 "use client";
 
+import type { ProjectWorkspaceChangeEvent } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
 import { PlusIcon } from "~/components/ui/icons";
 import {
@@ -12,8 +13,9 @@ import {
 } from "react";
 
 import { getLocalStorageItem, setLocalStorageItem } from "~/hooks/useLocalStorage";
-import { basenameOfPath } from "~/vscode-icons";
+import { readNativeApi } from "~/nativeApi";
 
+import { RoomFilePane } from "./RoomFilePane";
 import { RoomWorkspaceTree } from "./RoomWorkspaceTree";
 
 const ROOM_FOLDER_SIDEBAR_STORAGE_KEY = "room_folder_sidebar_width";
@@ -43,7 +45,11 @@ export function RoomView(props: {
     startWidth: number;
     startX: number;
   } | null>(null);
+  const workspaceChangeListenersRef = useRef(
+    new Set<(event: ProjectWorkspaceChangeEvent) => void>(),
+  );
   const [selectedPath, setSelectedPath] = useState<string>();
+  const [expandedDirectoryPaths, setExpandedDirectoryPaths] = useState<ReadonlyArray<string>>([]);
   const [sidebarWidth, setSidebarWidth] = useState(ROOM_FOLDER_SIDEBAR_DEFAULT_WIDTH_PX);
   const sidebarWidthRef = useRef(sidebarWidth);
 
@@ -63,6 +69,7 @@ export function RoomView(props: {
 
   useEffect(() => {
     setSelectedPath(undefined);
+    setExpandedDirectoryPaths([]);
   }, [workspaceRoot]);
 
   useEffect(() => {
@@ -171,6 +178,44 @@ export function RoomView(props: {
     [finishResize],
   );
 
+  const subscribeToWorkspaceChanges = useCallback(
+    (listener: (event: ProjectWorkspaceChangeEvent) => void) => {
+      workspaceChangeListenersRef.current.add(listener);
+      return () => {
+        workspaceChangeListenersRef.current.delete(listener);
+      };
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!visible || !workspaceRoot) {
+      return;
+    }
+
+    const api = readNativeApi();
+    if (!api) {
+      return;
+    }
+
+    const directoryPaths = Array.from(
+      new Set(expandedDirectoryPaths.filter((directoryPath) => directoryPath.length > 0)),
+    ).toSorted((left, right) => left.localeCompare(right));
+
+    return api.projects.onWorkspaceChange(
+      {
+        cwd: workspaceRoot,
+        ...(directoryPaths.length > 0 ? { directoryPaths } : {}),
+        ...(selectedPath ? { selectedFilePath: selectedPath } : {}),
+      },
+      (event) => {
+        for (const listener of workspaceChangeListenersRef.current) {
+          listener(event);
+        }
+      },
+    );
+  }, [expandedDirectoryPaths, selectedPath, visible, workspaceRoot]);
+
   return (
     <div
       ref={rootRef}
@@ -199,9 +244,11 @@ export function RoomView(props: {
         </div>
         <div className="min-h-0 flex-1">
           <RoomWorkspaceTree
+            onExpandedDirectoryPathsChange={setExpandedDirectoryPaths}
             onSelectPathChange={setSelectedPath}
             resolvedTheme={resolvedTheme}
             selectedPath={selectedPath}
+            subscribeToWorkspaceChanges={subscribeToWorkspaceChanges}
             visible={visible}
             workspaceRoot={workspaceRoot}
           />
@@ -219,11 +266,13 @@ export function RoomView(props: {
       </aside>
 
       <section className="flex min-h-0 min-w-0 flex-1">
-        <div className="flex min-h-0 min-w-0 flex-1 items-start px-6 py-4">
-          {selectedPath ? (
-            <p className="truncate text-xs text-muted-foreground">{basenameOfPath(selectedPath)}</p>
-          ) : null}
-        </div>
+        <RoomFilePane
+          resolvedTheme={resolvedTheme}
+          selectedPath={selectedPath}
+          subscribeToWorkspaceChanges={subscribeToWorkspaceChanges}
+          visible={visible}
+          workspaceRoot={workspaceRoot}
+        />
       </section>
     </div>
   );

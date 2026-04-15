@@ -1,6 +1,6 @@
 "use client";
 
-import type { ProjectEntry } from "@t3tools/contracts";
+import type { ProjectEntry, ProjectWorkspaceChangeEvent } from "@t3tools/contracts";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   type ReactNode,
@@ -47,6 +47,30 @@ function directoryKeyOf(directoryPath?: string): string {
   return directoryPath ?? ROOT_DIRECTORY_KEY;
 }
 
+function parentDirectoryPathOf(pathValue: string): string | undefined {
+  const normalizedPath = pathValue.replaceAll("\\", "/").replace(/\/+$/, "");
+  const separatorIndex = normalizedPath.lastIndexOf("/");
+  if (separatorIndex === -1) {
+    return undefined;
+  }
+
+  return normalizedPath.slice(0, separatorIndex);
+}
+
+function omitDirectorySubtree<T>(
+  record: Record<string, T>,
+  directoryPath: string,
+): Record<string, T> {
+  const nextRecord: Record<string, T> = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (key === directoryPath || key.startsWith(`${directoryPath}/`)) {
+      continue;
+    }
+    nextRecord[key] = value;
+  }
+  return nextRecord;
+}
+
 function statusMessage(error: unknown): string {
   if (
     typeof error === "object" &&
@@ -61,17 +85,30 @@ function statusMessage(error: unknown): string {
 }
 
 export function RoomWorkspaceTree(props: {
+  onExpandedDirectoryPathsChange: (paths: ReadonlyArray<string>) => void;
   workspaceRoot: string | undefined;
   visible: boolean;
   resolvedTheme: "light" | "dark";
   selectedPath: string | undefined;
   onSelectPathChange: (path: string) => void;
+  subscribeToWorkspaceChanges: (
+    listener: (event: ProjectWorkspaceChangeEvent) => void,
+  ) => () => void;
 }) {
-  const { onSelectPathChange, resolvedTheme, selectedPath, visible, workspaceRoot } = props;
+  const {
+    onExpandedDirectoryPathsChange,
+    onSelectPathChange,
+    resolvedTheme,
+    selectedPath,
+    subscribeToWorkspaceChanges,
+    visible,
+    workspaceRoot,
+  } = props;
   const queryClient = useQueryClient();
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set());
   const [directoryStates, setDirectoryStates] = useState<Record<string, DirectoryState>>({});
   const directoryStatesRef = useRef(directoryStates);
+  const expandedPathsRef = useRef(expandedPaths);
   const inFlightPathsRef = useRef(new Set<string>());
   const generationRef = useRef(0);
 
@@ -80,77 +117,99 @@ export function RoomWorkspaceTree(props: {
   }, [directoryStates]);
 
   useEffect(() => {
+    expandedPathsRef.current = expandedPaths;
+    onExpandedDirectoryPathsChange(
+      Array.from(expandedPaths).toSorted((left, right) => left.localeCompare(right)),
+    );
+  }, [expandedPaths, onExpandedDirectoryPathsChange]);
+
+  useEffect(() => {
     generationRef.current += 1;
     inFlightPathsRef.current.clear();
     setExpandedPaths(new Set());
     setDirectoryStates({});
   }, [workspaceRoot]);
 
-  const loadDirectory = useEffectEvent(async (directoryPath?: string) => {
-    if (!workspaceRoot) {
-      return;
-    }
-
-    const key = directoryKeyOf(directoryPath);
-    const existingState = directoryStatesRef.current[key];
-    if (existingState?.status === "loaded" || inFlightPathsRef.current.has(key)) {
-      return;
-    }
-
-    inFlightPathsRef.current.add(key);
-    setDirectoryStates((current) => ({
-      ...current,
-      [key]: {
-        status: "loading",
-        entries: current[key]?.entries ?? [],
-        truncated: current[key]?.truncated ?? false,
-      },
-    }));
-
-    const generation = generationRef.current;
-
-    try {
-      const result = await queryClient.fetchQuery(
-        projectListDirectoryQueryOptions({
-          cwd: workspaceRoot,
-          ...(directoryPath ? { directoryPath } : {}),
-        }),
-      );
-
-      if (generationRef.current !== generation) {
+  const loadDirectory = useEffectEvent(
+    async (directoryPath?: string, options?: { force?: boolean }) => {
+      if (!workspaceRoot) {
         return;
       }
 
-      startTransition(() => {
-        setDirectoryStates((current) => ({
-          ...current,
-          [key]: {
-            status: "loaded",
-            entries: result.entries,
-            truncated: result.truncated,
-          },
-        }));
-      });
-    } catch (error) {
-      if (generationRef.current !== generation) {
+      const key = directoryKeyOf(directoryPath);
+      const existingState = directoryStatesRef.current[key];
+      if (
+        (!options?.force && existingState?.status === "loaded") ||
+        inFlightPathsRef.current.has(key)
+      ) {
         return;
       }
 
-      startTransition(() => {
-        setDirectoryStates((current) => ({
-          ...current,
-          [key]: {
-            status: "error",
-            entries: current[key]?.entries ?? [],
-            truncated: false,
-            errorMessage: statusMessage(error),
-          },
-        }));
-      });
-    } finally {
-      inFlightPathsRef.current.delete(key);
-    }
-  });
+      inFlightPathsRef.current.add(key);
+      setDirectoryStates((current) => ({
+        ...current,
+        [key]: {
+          status: "loading",
+          entries: current[key]?.entries ?? [],
+          truncated: current[key]?.truncated ?? false,
+        },
+      }));
+
+      const generation = generationRef.current;
+
+      try {
+        if (options?.force) {
+          await queryClient.invalidateQueries({
+            queryKey: [
+              ...projectListDirectoryQueryOptions({
+                cwd: workspaceRoot,
+                ...(directoryPath ? { directoryPath } : {}),
+              }).queryKey,
+            ],
+          });
+        }
+        const result = await queryClient.fetchQuery(
+          projectListDirectoryQueryOptions({
+            cwd: workspaceRoot,
+            ...(directoryPath ? { directoryPath } : {}),
+          }),
+        );
+
+        if (generationRef.current !== generation) {
+          return;
+        }
+
+        startTransition(() => {
+          setDirectoryStates((current) => ({
+            ...current,
+            [key]: {
+              status: "loaded",
+              entries: result.entries,
+              truncated: result.truncated,
+            },
+          }));
+        });
+      } catch (error) {
+        if (generationRef.current !== generation) {
+          return;
+        }
+
+        startTransition(() => {
+          setDirectoryStates((current) => ({
+            ...current,
+            [key]: {
+              status: "error",
+              entries: current[key]?.entries ?? [],
+              truncated: false,
+              errorMessage: statusMessage(error),
+            },
+          }));
+        });
+      } finally {
+        inFlightPathsRef.current.delete(key);
+      }
+    },
+  );
 
   useEffect(() => {
     if (!visible || !workspaceRoot) {
@@ -158,6 +217,56 @@ export function RoomWorkspaceTree(props: {
     }
     void loadDirectory();
   }, [visible, workspaceRoot]);
+
+  const handleWorkspaceChange = useEffectEvent((event: ProjectWorkspaceChangeEvent) => {
+    if (!visible || !workspaceRoot) {
+      return;
+    }
+
+    if (event._tag === "directoryInvalidated") {
+      const key = directoryKeyOf(event.directoryPath);
+      if (directoryStatesRef.current[key]) {
+        void loadDirectory(event.directoryPath, { force: true });
+      }
+      return;
+    }
+
+    const parentDirectoryPath = parentDirectoryPathOf(event.relativePath);
+    const parentKey = directoryKeyOf(parentDirectoryPath);
+    if (directoryStatesRef.current[parentKey]) {
+      void loadDirectory(parentDirectoryPath, { force: true });
+    }
+
+    const directoryKey = directoryKeyOf(event.relativePath);
+    const hasLoadedDirectory = Boolean(directoryStatesRef.current[directoryKey]);
+    if (!event.exists && hasLoadedDirectory) {
+      startTransition(() => {
+        setDirectoryStates((current) => omitDirectorySubtree(current, event.relativePath));
+        setExpandedPaths((current) => {
+          const nextExpandedPaths = new Set(
+            Array.from(current).filter(
+              (directoryPath) =>
+                directoryPath !== event.relativePath &&
+                !directoryPath.startsWith(`${event.relativePath}/`),
+            ),
+          );
+          expandedPathsRef.current = nextExpandedPaths;
+          return nextExpandedPaths;
+        });
+      });
+      return;
+    }
+
+    if (event.entryKind === "directory" && event.exists && hasLoadedDirectory) {
+      void loadDirectory(event.relativePath, { force: true });
+    }
+  });
+
+  useEffect(() => {
+    return subscribeToWorkspaceChanges((event) => {
+      handleWorkspaceChange(event);
+    });
+  }, [subscribeToWorkspaceChanges]);
 
   const handleExpandedChange = useCallback(
     (nextExpandedPaths: Set<string>) => {

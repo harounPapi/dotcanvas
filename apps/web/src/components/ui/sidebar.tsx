@@ -934,6 +934,23 @@ function SidebarMenuSubItem({ className, ...props }: React.ComponentProps<"li">)
   );
 }
 
+function sidebarMenuSubButtonClassName({
+  className,
+  size = "md",
+}: {
+  className?: string | undefined;
+  size?: "sm" | "md";
+}) {
+  return cn(
+    "-translate-x-px flex h-7 min-w-0 cursor-pointer items-center gap-2 overflow-hidden rounded-lg px-2 text-sidebar-foreground outline-hidden ring-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg:not([class*='size-'])]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground",
+    "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground",
+    size === "sm" && "text-xs",
+    size === "md" && "text-sm",
+    "group-data-[collapsible=icon]:hidden",
+    className,
+  );
+}
+
 function SidebarMenuSubButton({
   size = "md",
   isActive = false,
@@ -945,14 +962,7 @@ function SidebarMenuSubButton({
   isActive?: boolean;
 }) {
   const defaultProps = {
-    className: cn(
-      "-translate-x-px flex h-7 min-w-0 cursor-pointer items-center gap-2 overflow-hidden rounded-lg px-2 text-sidebar-foreground outline-hidden ring-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg:not([class*='size-'])]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground",
-      "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground",
-      size === "sm" && "text-xs",
-      size === "md" && "text-sm",
-      "group-data-[collapsible=icon]:hidden",
-      className,
-    ),
+    className: sidebarMenuSubButtonClassName({ className, size }),
     "data-active": isActive,
     "data-sidebar": "menu-sub-button",
     "data-size": size,
@@ -984,6 +994,7 @@ export {
   SidebarMenuItem,
   SidebarMenuSkeleton,
   SidebarMenuSub,
+  sidebarMenuSubButtonClassName,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarProvider,

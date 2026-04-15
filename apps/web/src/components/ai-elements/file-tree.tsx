@@ -9,7 +9,9 @@ import {
 import type { HTMLAttributes, KeyboardEvent, ReactNode, SyntheticEvent } from "react";
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
+import { resolveThreadRowClassName } from "~/components/Sidebar.logic";
 import { Collapsible, CollapsibleContent } from "~/components/ui/collapsible";
+import { sidebarMenuSubButtonClassName } from "~/components/ui/sidebar";
 import { cn } from "~/lib/utils";
 
 interface FileTreeContextValue {
@@ -108,7 +110,7 @@ export type FileTreeFolderProps = HTMLAttributes<HTMLDivElement> & {
 };
 
 export function FileTreeFolder({ path, name, className, children, ...props }: FileTreeFolderProps) {
-  const { expandedPaths, onSelect, selectedPath, togglePath } = useContext(FileTreeContext);
+  const { expandedPaths, selectedPath, togglePath } = useContext(FileTreeContext);
   const isExpanded = expandedPaths.has(path);
   const isSelected = selectedPath === path;
 
@@ -116,29 +118,61 @@ export function FileTreeFolder({ path, name, className, children, ...props }: Fi
     togglePath(path);
   }, [path, togglePath]);
 
-  const handleSelect = useCallback(() => {
-    onSelect?.(path);
-  }, [onSelect, path]);
+  const handleClick = useCallback(() => {
+    handleToggle();
+  }, [handleToggle]);
+
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        handleClick();
+        return;
+      }
+
+      if (event.key === "ArrowRight" && !isExpanded) {
+        event.preventDefault();
+        handleToggle();
+        return;
+      }
+
+      if (event.key === "ArrowLeft" && isExpanded) {
+        event.preventDefault();
+        handleToggle();
+      }
+    },
+    [handleClick, handleToggle, isExpanded],
+  );
 
   return (
     <Collapsible open={isExpanded} onOpenChange={handleToggle}>
-      <div
-        aria-expanded={isExpanded}
-        className={cn("", className)}
-        role="treeitem"
-        tabIndex={0}
-        {...props}
-      >
+      <div className={cn(className)} {...props}>
         <div
+          aria-expanded={isExpanded}
+          aria-selected={isSelected}
           className={cn(
-            "flex h-7 w-full items-center gap-1 rounded-lg px-2 text-left transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-within:bg-sidebar-accent focus-within:text-sidebar-accent-foreground",
-            isSelected && "bg-sidebar-accent text-sidebar-accent-foreground",
+            sidebarMenuSubButtonClassName({
+              className: "w-full",
+              size: "md",
+            }),
+            resolveThreadRowClassName({
+              isActive: isSelected,
+              isSelected: false,
+            }),
           )}
+          data-active={isSelected}
+          onClick={handleClick}
+          onKeyDown={handleKeyDown}
+          role="treeitem"
+          tabIndex={0}
         >
           <button
             aria-label={isExpanded ? `Collapse ${name}` : `Expand ${name}`}
             className="flex shrink-0 cursor-pointer items-center rounded-md border-none bg-transparent p-0 outline-hidden"
-            onClick={handleToggle}
+            onClick={(event) => {
+              event.stopPropagation();
+              handleToggle();
+            }}
             type="button"
           >
             <ChevronRightIcon
@@ -148,11 +182,7 @@ export function FileTreeFolder({ path, name, className, children, ...props }: Fi
               )}
             />
           </button>
-          <button
-            className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 border-none bg-transparent p-0 text-left outline-hidden"
-            onClick={handleSelect}
-            type="button"
-          >
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
             <FileTreeIcon>
               {isExpanded ? (
                 <HugeFolderOpenIcon className="size-4 text-blue-500" />
@@ -161,10 +191,12 @@ export function FileTreeFolder({ path, name, className, children, ...props }: Fi
               )}
             </FileTreeIcon>
             <FileTreeName>{name}</FileTreeName>
-          </button>
+          </div>
         </div>
         <CollapsibleContent>
-          <div className="ml-4 border-sidebar-border/80 border-l pl-2">{children}</div>
+          <div className="mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-sidebar-border border-l px-2.5 py-0.5">
+            {children}
+          </div>
         </CollapsibleContent>
       </div>
     </Collapsible>
@@ -206,10 +238,15 @@ export function FileTreeFile({
   return (
     <div
       className={cn(
-        "flex h-7 cursor-pointer items-center gap-1 rounded-lg px-2 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-        isSelected && "bg-sidebar-accent text-sidebar-accent-foreground",
+        sidebarMenuSubButtonClassName({ size: "md" }),
+        resolveThreadRowClassName({
+          isActive: isSelected,
+          isSelected: false,
+        }),
         className,
       )}
+      aria-selected={isSelected}
+      data-active={isSelected}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       role="treeitem"
