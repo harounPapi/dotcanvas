@@ -87,9 +87,12 @@ const rpcClientMock = {
       ) => registerListener(workspaceChangeListeners, listener),
     ),
     readFile: vi.fn(),
+    readTabularFile: vi.fn(),
+    readTabularMedia: vi.fn(),
     searchEntries: vi.fn(),
     statPath: vi.fn(),
     writeFile: vi.fn(),
+    writeTabularFile: vi.fn(),
   },
   capabilities: {
     search: vi.fn(),
@@ -530,6 +533,158 @@ describe("wsNativeApi", () => {
     expect(rpcClientMock.projects.readFile).toHaveBeenCalledWith({
       cwd: "/tmp/project",
       relativePath: "DotCanvas/memory.md",
+    });
+  });
+
+  it("forwards project spreadsheet reads to the project RPC", async () => {
+    rpcClientMock.projects.readTabularFile.mockResolvedValue({
+      relativePath: "planning.xlsx",
+      previewKind: "workbook-presentation",
+      kind: "xlsx",
+      sizeBytes: 42,
+      mtimeMs: 456,
+      capabilities: { canEditInRoom: false },
+      presentationFidelity: "full",
+      previewNotices: [],
+      dateSystem: "1900",
+      theme: {
+        colors: {},
+      },
+      styles: [],
+      sheets: [
+        {
+          name: "Sheet1",
+          state: "visible",
+          showGridLines: true,
+          rowCount: 1,
+          columnCount: 1,
+          rawValues: [["Owner"]],
+          displayText: [["Owner"]],
+          valueKinds: [["text"]],
+          styleIds: [[null]],
+          merges: [],
+          hiddenRows: [],
+          hiddenColumns: [],
+          rowHeights: [null],
+          columnWidths: [null],
+          comments: [],
+          images: [],
+          conditionalOverlays: [],
+        },
+      ],
+    });
+    const { createWsNativeApi } = await import("./wsNativeApi");
+
+    const api = createWsNativeApi();
+    await expect(
+      api.projects.readTabularFile({
+        cwd: "/tmp/project",
+        relativePath: "planning.xlsx",
+      }),
+    ).resolves.toEqual({
+      relativePath: "planning.xlsx",
+      previewKind: "workbook-presentation",
+      kind: "xlsx",
+      sizeBytes: 42,
+      mtimeMs: 456,
+      capabilities: { canEditInRoom: false },
+      presentationFidelity: "full",
+      previewNotices: [],
+      dateSystem: "1900",
+      theme: {
+        colors: {},
+      },
+      styles: [],
+      sheets: [
+        {
+          name: "Sheet1",
+          state: "visible",
+          showGridLines: true,
+          rowCount: 1,
+          columnCount: 1,
+          rawValues: [["Owner"]],
+          displayText: [["Owner"]],
+          valueKinds: [["text"]],
+          styleIds: [[null]],
+          merges: [],
+          hiddenRows: [],
+          hiddenColumns: [],
+          rowHeights: [null],
+          columnWidths: [null],
+          comments: [],
+          images: [],
+          conditionalOverlays: [],
+        },
+      ],
+    });
+
+    expect(rpcClientMock.projects.readTabularFile).toHaveBeenCalledWith({
+      cwd: "/tmp/project",
+      relativePath: "planning.xlsx",
+    });
+  });
+
+  it("forwards workbook media reads to the project RPC", async () => {
+    rpcClientMock.projects.readTabularMedia.mockResolvedValue({
+      mediaId: "0",
+      mimeType: "image/png",
+      contentBase64: "Zm9v",
+    });
+    const { createWsNativeApi } = await import("./wsNativeApi");
+
+    const api = createWsNativeApi();
+    await expect(
+      api.projects.readTabularMedia({
+        cwd: "/tmp/project",
+        relativePath: "planning.xlsx",
+        mtimeMs: 456,
+        mediaId: "0",
+      }),
+    ).resolves.toEqual({
+      mediaId: "0",
+      mimeType: "image/png",
+      contentBase64: "Zm9v",
+    });
+
+    expect(rpcClientMock.projects.readTabularMedia).toHaveBeenCalledWith({
+      cwd: "/tmp/project",
+      relativePath: "planning.xlsx",
+      mtimeMs: 456,
+      mediaId: "0",
+    });
+  });
+
+  it("forwards workspace spreadsheet writes to the project RPC", async () => {
+    rpcClientMock.projects.writeTabularFile.mockResolvedValue({ relativePath: "planning.xlsx" });
+    const { createWsNativeApi } = await import("./wsNativeApi");
+
+    const api = createWsNativeApi();
+    await api.projects.writeTabularFile({
+      cwd: "/tmp/project",
+      relativePath: "planning.xlsx",
+      patches: [
+        {
+          sheetName: "Sheet1",
+          row: 0,
+          col: 0,
+          value: "Owner",
+          valueKind: "text",
+        },
+      ],
+    });
+
+    expect(rpcClientMock.projects.writeTabularFile).toHaveBeenCalledWith({
+      cwd: "/tmp/project",
+      relativePath: "planning.xlsx",
+      patches: [
+        {
+          sheetName: "Sheet1",
+          row: 0,
+          col: 0,
+          value: "Owner",
+          valueKind: "text",
+        },
+      ],
     });
   });
 

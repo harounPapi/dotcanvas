@@ -66,9 +66,12 @@ export interface WsRpcClient {
       options?: StreamSubscriptionOptions,
     ) => () => void;
     readonly readFile: RpcUnaryMethod<typeof WS_METHODS.projectsReadFile>;
+    readonly readTabularFile: RpcUnaryMethod<typeof WS_METHODS.projectsReadTabularFile>;
+    readonly readTabularMedia: RpcUnaryMethod<typeof WS_METHODS.projectsReadTabularMedia>;
     readonly searchEntries: RpcUnaryMethod<typeof WS_METHODS.projectsSearchEntries>;
     readonly statPath: RpcUnaryMethod<typeof WS_METHODS.projectsStatPath>;
     readonly writeFile: RpcUnaryMethod<typeof WS_METHODS.projectsWriteFile>;
+    readonly writeTabularFile: RpcUnaryMethod<typeof WS_METHODS.projectsWriteTabularFile>;
   };
   readonly capabilities: {
     readonly search: RpcUnaryMethod<typeof WS_METHODS.capabilitiesSearch>;
@@ -182,12 +185,18 @@ export function createWsRpcClient(transport = new WsTransport()): WsRpcClient {
         ),
       readFile: (input) =>
         transport.request((client) => client[WS_METHODS.projectsReadFile](input)),
+      readTabularFile: (input) =>
+        transport.request((client) => client[WS_METHODS.projectsReadTabularFile](input)),
+      readTabularMedia: (input) =>
+        transport.request((client) => client[WS_METHODS.projectsReadTabularMedia](input)),
       searchEntries: (input) =>
         transport.request((client) => client[WS_METHODS.projectsSearchEntries](input)),
       statPath: (input) =>
         transport.request((client) => client[WS_METHODS.projectsStatPath](input)),
       writeFile: (input) =>
         transport.request((client) => client[WS_METHODS.projectsWriteFile](input)),
+      writeTabularFile: (input) =>
+        transport.request((client) => client[WS_METHODS.projectsWriteTabularFile](input)),
     },
     capabilities: {
       search: (input) =>

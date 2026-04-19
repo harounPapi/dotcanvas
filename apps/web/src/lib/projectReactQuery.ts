@@ -1,6 +1,7 @@
 import type {
   ProjectListDirectoryResult,
   ProjectReadFileResult,
+  ProjectReadTabularFileResult,
   ProjectSearchEntriesResult,
 } from "@t3tools/contracts";
 import { queryOptions } from "@tanstack/react-query";
@@ -12,6 +13,8 @@ export const projectQueryKeys = {
     ["projects", "list-directory", cwd, directoryPath ?? "__root__"] as const,
   readFile: (cwd: string | null, relativePath: string | null) =>
     ["projects", "read-file", cwd, relativePath] as const,
+  readTabularFile: (cwd: string | null, relativePath: string | null) =>
+    ["projects", "read-tabular-file", cwd, relativePath] as const,
   searchEntries: (cwd: string | null, query: string, limit: number) =>
     ["projects", "search-entries", cwd, query, limit] as const,
 };
@@ -29,6 +32,16 @@ const EMPTY_READ_FILE_RESULT: ProjectReadFileResult = {
   contents: "",
   sizeBytes: 0,
   mtimeMs: 0,
+};
+const EMPTY_READ_TABULAR_FILE_RESULT: ProjectReadTabularFileResult = {
+  relativePath: "",
+  previewKind: "delimited-grid",
+  kind: "csv",
+  delimiter: ",",
+  sizeBytes: 0,
+  mtimeMs: 0,
+  capabilities: { canEditInRoom: true },
+  sheets: [],
 };
 const EMPTY_SEARCH_ENTRIES_RESULT: ProjectSearchEntriesResult = {
   entries: [],
@@ -76,6 +89,28 @@ export function projectReadFileQueryOptions(input: {
     },
     staleTime: input.staleTime ?? DEFAULT_READ_FILE_STALE_TIME,
     placeholderData: (previous) => previous ?? EMPTY_READ_FILE_RESULT,
+  });
+}
+
+export function projectReadTabularFileQueryOptions(input: {
+  cwd: string | null;
+  relativePath: string | null;
+  staleTime?: number;
+}) {
+  return queryOptions({
+    queryKey: projectQueryKeys.readTabularFile(input.cwd, input.relativePath),
+    queryFn: async () => {
+      const api = ensureNativeApi();
+      if (!input.cwd || !input.relativePath) {
+        throw new Error("Workspace spreadsheet reading is unavailable.");
+      }
+      return api.projects.readTabularFile({
+        cwd: input.cwd,
+        relativePath: input.relativePath,
+      });
+    },
+    staleTime: input.staleTime ?? DEFAULT_READ_FILE_STALE_TIME,
+    placeholderData: (previous) => previous ?? EMPTY_READ_TABULAR_FILE_RESULT,
   });
 }
 

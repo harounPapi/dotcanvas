@@ -93,6 +93,7 @@ import { WorkspaceEntriesLive } from "./workspace/Layers/WorkspaceEntries.ts";
 import { WorkspaceChangeBroadcasterLive } from "./workspace/Layers/WorkspaceChangeBroadcaster.ts";
 import { WorkspaceFileSystemLive } from "./workspace/Layers/WorkspaceFileSystem.ts";
 import { WorkspacePathsLive } from "./workspace/Layers/WorkspacePaths.ts";
+import { WorkspaceTabularFileSystemLive } from "./workspace/Layers/WorkspaceTabularFileSystem.ts";
 import {
   WorkspaceChangeBroadcaster,
   type WorkspaceChangeBroadcasterShape,
@@ -158,6 +159,10 @@ const workspaceAndProjectServicesLayer = Layer.mergeAll(
   WorkspaceEntriesLive.pipe(Layer.provide(WorkspacePathsLive)),
   WorkspaceChangeBroadcasterLive.pipe(Layer.provide(WorkspacePathsLive)),
   WorkspaceFileSystemLive.pipe(
+    Layer.provide(WorkspacePathsLive),
+    Layer.provide(WorkspaceEntriesLive.pipe(Layer.provide(WorkspacePathsLive))),
+  ),
+  WorkspaceTabularFileSystemLive.pipe(
     Layer.provide(WorkspacePathsLive),
     Layer.provide(WorkspaceEntriesLive.pipe(Layer.provide(WorkspacePathsLive))),
   ),

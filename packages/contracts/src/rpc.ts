@@ -66,6 +66,12 @@ import {
   ProjectReadFileError,
   ProjectReadFileInput,
   ProjectReadFileResult,
+  ProjectReadTabularFileError,
+  ProjectReadTabularFileInput,
+  ProjectReadTabularFileResult,
+  ProjectReadTabularMediaError,
+  ProjectReadTabularMediaInput,
+  ProjectReadTabularMediaResult,
   ProjectSearchEntriesError,
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
@@ -78,6 +84,9 @@ import {
   ProjectWriteFileError,
   ProjectWriteFileInput,
   ProjectWriteFileResult,
+  ProjectWriteTabularFileError,
+  ProjectWriteTabularFileInput,
+  ProjectWriteTabularFileResult,
 } from "./project";
 import {
   TerminalClearInput,
@@ -109,9 +118,12 @@ export const WS_METHODS = {
   projectsCreateDirectory: "projects.createDirectory",
   projectsListDirectory: "projects.listDirectory",
   projectsReadFile: "projects.readFile",
+  projectsReadTabularFile: "projects.readTabularFile",
+  projectsReadTabularMedia: "projects.readTabularMedia",
   projectsSearchEntries: "projects.searchEntries",
   projectsStatPath: "projects.statPath",
   projectsWriteFile: "projects.writeFile",
+  projectsWriteTabularFile: "projects.writeTabularFile",
   capabilitiesSearch: "capabilities.search",
   capabilitiesReadPluginBundle: "capabilities.readPluginBundle",
 
@@ -204,6 +216,18 @@ export const WsProjectsReadFileRpc = Rpc.make(WS_METHODS.projectsReadFile, {
   error: ProjectReadFileError,
 });
 
+export const WsProjectsReadTabularFileRpc = Rpc.make(WS_METHODS.projectsReadTabularFile, {
+  payload: ProjectReadTabularFileInput,
+  success: ProjectReadTabularFileResult,
+  error: ProjectReadTabularFileError,
+});
+
+export const WsProjectsReadTabularMediaRpc = Rpc.make(WS_METHODS.projectsReadTabularMedia, {
+  payload: ProjectReadTabularMediaInput,
+  success: ProjectReadTabularMediaResult,
+  error: ProjectReadTabularMediaError,
+});
+
 export const WsProjectsCreateDirectoryRpc = Rpc.make(WS_METHODS.projectsCreateDirectory, {
   payload: ProjectCreateDirectoryInput,
   success: ProjectCreateDirectoryResult,
@@ -226,6 +250,12 @@ export const WsProjectsWriteFileRpc = Rpc.make(WS_METHODS.projectsWriteFile, {
   payload: ProjectWriteFileInput,
   success: ProjectWriteFileResult,
   error: ProjectWriteFileError,
+});
+
+export const WsProjectsWriteTabularFileRpc = Rpc.make(WS_METHODS.projectsWriteTabularFile, {
+  payload: ProjectWriteTabularFileInput,
+  success: ProjectWriteTabularFileResult,
+  error: ProjectWriteTabularFileError,
 });
 
 export const WsCapabilitiesSearchRpc = Rpc.make(WS_METHODS.capabilitiesSearch, {
@@ -443,9 +473,12 @@ export const WsRpcGroup = RpcGroup.make(
   WsProjectsCreateDirectoryRpc,
   WsProjectsListDirectoryRpc,
   WsProjectsReadFileRpc,
+  WsProjectsReadTabularFileRpc,
+  WsProjectsReadTabularMediaRpc,
   WsProjectsSearchEntriesRpc,
   WsProjectsStatPathRpc,
   WsProjectsWriteFileRpc,
+  WsProjectsWriteTabularFileRpc,
   WsCapabilitiesSearchRpc,
   WsCapabilitiesReadPluginBundleRpc,
   WsShellOpenInEditorRpc,

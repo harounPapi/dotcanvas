@@ -16,10 +16,13 @@ import {
   ProjectCreateDirectoryError,
   ProjectListDirectoryError,
   ProjectReadFileError,
+  ProjectReadTabularFileError,
+  ProjectReadTabularMediaError,
   ProjectSearchEntriesError,
   ProjectStatPathError,
   ProjectWorkspaceWatchError,
   ProjectWriteFileError,
+  ProjectWriteTabularFileError,
   ProjectId,
   OrchestrationReplayEventsError,
   ThreadId,
@@ -63,6 +66,7 @@ import {
   WorkspaceFileSystemWriteConflictError,
 } from "./workspace/Services/WorkspaceFileSystem";
 import { WorkspacePathOutsideRootError } from "./workspace/Services/WorkspacePaths";
+import { WorkspaceTabularFileSystem } from "./workspace/Services/WorkspaceTabularFileSystem";
 import { ProjectSetupScriptRunner } from "./project/Services/ProjectSetupScriptRunner";
 
 const WsRpcLayer = WsRpcGroup.toLayer(
@@ -85,6 +89,7 @@ const WsRpcLayer = WsRpcGroup.toLayer(
     const workspaceEntries = yield* WorkspaceEntries;
     const workspaceChangeBroadcaster = yield* WorkspaceChangeBroadcaster;
     const workspaceFileSystem = yield* WorkspaceFileSystem;
+    const workspaceTabularFileSystem = yield* WorkspaceTabularFileSystem;
     const projectSetupScriptRunner = yield* ProjectSetupScriptRunner;
     const serverCommandId = (tag: string) =>
       CommandId.makeUnsafe(`server:${tag}:${crypto.randomUUID()}`);
@@ -594,6 +599,36 @@ const WsRpcLayer = WsRpcGroup.toLayer(
           ),
           { "rpc.aggregate": "workspace" },
         ),
+      [WS_METHODS.projectsReadTabularFile]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.projectsReadTabularFile,
+          workspaceTabularFileSystem.readTabularFile(input).pipe(
+            Effect.mapError((cause) => {
+              return new ProjectReadTabularFileError({
+                message: Schema.is(WorkspacePathOutsideRootError)(cause)
+                  ? "Workspace file path must stay within the project root."
+                  : cause.detail,
+                cause,
+              });
+            }),
+          ),
+          { "rpc.aggregate": "workspace" },
+        ),
+      [WS_METHODS.projectsReadTabularMedia]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.projectsReadTabularMedia,
+          workspaceTabularFileSystem.readTabularMedia(input).pipe(
+            Effect.mapError((cause) => {
+              return new ProjectReadTabularMediaError({
+                message: Schema.is(WorkspacePathOutsideRootError)(cause)
+                  ? "Workspace file path must stay within the project root."
+                  : cause.detail,
+                cause,
+              });
+            }),
+          ),
+          { "rpc.aggregate": "workspace" },
+        ),
       [WS_METHODS.subscribeProjectWorkspaceChanges]: (input) =>
         observeRpcStream(
           WS_METHODS.subscribeProjectWorkspaceChanges,
@@ -724,6 +759,24 @@ const WsRpcLayer = WsRpcGroup.toLayer(
                   ? cause.message
                   : cause.detail;
               return new ProjectWriteFileError({
+                message,
+                cause,
+              });
+            }),
+          ),
+          { "rpc.aggregate": "workspace" },
+        ),
+      [WS_METHODS.projectsWriteTabularFile]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.projectsWriteTabularFile,
+          workspaceTabularFileSystem.writeTabularFile(input).pipe(
+            Effect.mapError((cause) => {
+              const message = Schema.is(WorkspacePathOutsideRootError)(cause)
+                ? "Workspace file path must stay within the project root."
+                : Schema.is(WorkspaceFileSystemWriteConflictError)(cause)
+                  ? cause.message
+                  : cause.detail;
+              return new ProjectWriteTabularFileError({
                 message,
                 cause,
               });

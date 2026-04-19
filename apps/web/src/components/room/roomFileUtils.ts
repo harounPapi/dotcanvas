@@ -1,10 +1,15 @@
 "use client";
 
+import {
+  classifyFilePreview,
+  isMarkdownPreviewPath,
+  isWorkbookTabularFileKind,
+} from "@t3tools/shared/filePreviews";
+
 import { resolveMarkdownFileLinkTarget } from "~/markdown-links";
 import { resolvePathLinkTarget } from "~/terminal-links";
 import { basenameOfPath } from "~/vscode-icons";
 
-const MARKDOWN_EXTENSIONS = new Set([".md", ".mdx", ".markdown"]);
 const LINE_COLUMN_SUFFIX_PATTERN = /:\d+(?::\d+)?$/;
 const WINDOWS_ABSOLUTE_PATH_PATTERN = /^[A-Za-z]:\//;
 
@@ -21,13 +26,16 @@ function directoryOfRelativePath(relativePath: string): string {
 }
 
 export function isMarkdownPath(pathValue: string): boolean {
-  const normalizedPath = normalizePathSeparators(pathValue).toLowerCase();
-  for (const extension of MARKDOWN_EXTENSIONS) {
-    if (normalizedPath.endsWith(extension)) {
-      return true;
-    }
-  }
-  return false;
+  return isMarkdownPreviewPath(pathValue);
+}
+
+export function classifyRoomFile(pathValue: string) {
+  return classifyFilePreview(pathValue);
+}
+
+export function isWorkbookPresentationPreview(pathValue: string): boolean {
+  const preview = classifyFilePreview(pathValue);
+  return preview.kind === "tabular" && isWorkbookTabularFileKind(preview.tabularKind);
 }
 
 export function resolveWorkspaceAbsolutePath(workspaceRoot: string, relativePath: string): string {

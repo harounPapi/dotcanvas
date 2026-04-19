@@ -102,6 +102,136 @@ describe("wsRpcClient", () => {
     expect(request).toHaveBeenCalledTimes(1);
   });
 
+  it("forwards project spreadsheet read requests through the websocket transport", async () => {
+    const request: WsTransport["request"] = vi.fn(async <TSuccess>() => {
+      return {
+        relativePath: "roadmap.xlsx",
+        previewKind: "workbook-presentation" as const,
+        kind: "xlsx" as const,
+        sizeBytes: 128,
+        mtimeMs: 456,
+        capabilities: { canEditInRoom: false as const },
+        presentationFidelity: "full" as const,
+        previewNotices: [],
+        dateSystem: "1900" as const,
+        theme: {
+          colors: {},
+        },
+        styles: [],
+        sheets: [
+          {
+            name: "Sheet1",
+            state: "visible" as const,
+            showGridLines: true,
+            rowCount: 1,
+            columnCount: 2,
+            rawValues: [["Milestone", "Owner"]],
+            displayText: [["Milestone", "Owner"]],
+            valueKinds: [["text", "text"]],
+            styleIds: [[null, null]],
+            merges: [],
+            hiddenRows: [],
+            hiddenColumns: [],
+            rowHeights: [null],
+            columnWidths: [null, null],
+            comments: [],
+            images: [],
+            conditionalOverlays: [],
+          },
+        ],
+      } as TSuccess;
+    }) as WsTransport["request"];
+    const transport = {
+      dispose: vi.fn(async () => undefined),
+      reconnect: vi.fn(async () => undefined),
+      request,
+      requestStream: vi.fn(),
+      subscribe: vi.fn(),
+    } satisfies Pick<
+      WsTransport,
+      "dispose" | "reconnect" | "request" | "requestStream" | "subscribe"
+    >;
+
+    const client = createWsRpcClient(transport as unknown as WsTransport);
+    const result = await client.projects.readTabularFile({
+      cwd: "/repo",
+      relativePath: "roadmap.xlsx",
+    });
+
+    expect(result).toEqual({
+      relativePath: "roadmap.xlsx",
+      previewKind: "workbook-presentation",
+      kind: "xlsx",
+      sizeBytes: 128,
+      mtimeMs: 456,
+      capabilities: { canEditInRoom: false },
+      presentationFidelity: "full",
+      previewNotices: [],
+      dateSystem: "1900",
+      theme: {
+        colors: {},
+      },
+      styles: [],
+      sheets: [
+        {
+          name: "Sheet1",
+          state: "visible",
+          showGridLines: true,
+          rowCount: 1,
+          columnCount: 2,
+          rawValues: [["Milestone", "Owner"]],
+          displayText: [["Milestone", "Owner"]],
+          valueKinds: [["text", "text"]],
+          styleIds: [[null, null]],
+          merges: [],
+          hiddenRows: [],
+          hiddenColumns: [],
+          rowHeights: [null],
+          columnWidths: [null, null],
+          comments: [],
+          images: [],
+          conditionalOverlays: [],
+        },
+      ],
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it("forwards workbook media read requests through the websocket transport", async () => {
+    const request: WsTransport["request"] = vi.fn(async <TSuccess>() => {
+      return {
+        mediaId: "0",
+        mimeType: "image/png",
+        contentBase64: "Zm9v",
+      } as TSuccess;
+    }) as WsTransport["request"];
+    const transport = {
+      dispose: vi.fn(async () => undefined),
+      reconnect: vi.fn(async () => undefined),
+      request,
+      requestStream: vi.fn(),
+      subscribe: vi.fn(),
+    } satisfies Pick<
+      WsTransport,
+      "dispose" | "reconnect" | "request" | "requestStream" | "subscribe"
+    >;
+
+    const client = createWsRpcClient(transport as unknown as WsTransport);
+    const result = await client.projects.readTabularMedia({
+      cwd: "/repo",
+      relativePath: "roadmap.xlsx",
+      mtimeMs: 456,
+      mediaId: "0",
+    });
+
+    expect(result).toEqual({
+      mediaId: "0",
+      mimeType: "image/png",
+      contentBase64: "Zm9v",
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
   it("forwards workspace change subscriptions through the websocket transport", () => {
     const subscribe = vi.fn(
       <TValue>(_connect: unknown, listener: (value: TValue) => void, _options?: unknown) => {

@@ -33,6 +33,10 @@ import type {
   ProjectListDirectoryResult,
   ProjectReadFileInput,
   ProjectReadFileResult,
+  ProjectReadTabularFileInput,
+  ProjectReadTabularFileResult,
+  ProjectReadTabularMediaInput,
+  ProjectReadTabularMediaResult,
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
   ProjectWorkspaceChangeEvent,
@@ -41,6 +45,8 @@ import type {
   ProjectStatPathResult,
   ProjectWriteFileInput,
   ProjectWriteFileResult,
+  ProjectWriteTabularFileInput,
+  ProjectWriteTabularFileResult,
 } from "./project";
 import type {
   ServerConfig,
@@ -168,9 +174,16 @@ export interface NativeApi {
       },
     ) => () => void;
     readFile: (input: ProjectReadFileInput) => Promise<ProjectReadFileResult>;
+    readTabularFile: (input: ProjectReadTabularFileInput) => Promise<ProjectReadTabularFileResult>;
+    readTabularMedia: (
+      input: ProjectReadTabularMediaInput,
+    ) => Promise<ProjectReadTabularMediaResult>;
     searchEntries: (input: ProjectSearchEntriesInput) => Promise<ProjectSearchEntriesResult>;
     statPath: (input: ProjectStatPathInput) => Promise<ProjectStatPathResult>;
     writeFile: (input: ProjectWriteFileInput) => Promise<ProjectWriteFileResult>;
+    writeTabularFile: (
+      input: ProjectWriteTabularFileInput,
+    ) => Promise<ProjectWriteTabularFileResult>;
   };
   capabilities: {
     search: (input: CapabilitySearchInput) => Promise<CapabilitySearchResult>;

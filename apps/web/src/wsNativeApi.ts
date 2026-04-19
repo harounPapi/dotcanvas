@@ -56,9 +56,12 @@ export function createWsNativeApi(): NativeApi {
       onWorkspaceChange: (input, callback, options) =>
         rpcClient.projects.onWorkspaceChange(input, callback, options),
       readFile: rpcClient.projects.readFile,
+      readTabularFile: rpcClient.projects.readTabularFile,
+      readTabularMedia: rpcClient.projects.readTabularMedia,
       searchEntries: rpcClient.projects.searchEntries,
       statPath: rpcClient.projects.statPath,
       writeFile: rpcClient.projects.writeFile,
+      writeTabularFile: rpcClient.projects.writeTabularFile,
     },
     capabilities: {
       search: rpcClient.capabilities.search,

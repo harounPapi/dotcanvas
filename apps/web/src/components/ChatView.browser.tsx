@@ -55,6 +55,8 @@ const PROJECT_ID = "project-1" as ProjectId;
 const NOW_ISO = "2026-03-04T12:00:00.000Z";
 const BASE_TIME_MS = Date.parse(NOW_ISO);
 const ATTACHMENT_SVG = "<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'></svg>";
+const ONE_PIXEL_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jx7sAAAAASUVORK5CYII=";
 
 interface TestFixture {
   snapshot: OrchestrationReadModel;
@@ -707,7 +709,42 @@ function resolveWsRpc(body: NormalizedWsRpcRequestBody): unknown {
       mtimeMs: 1,
     };
   }
+  if (tag === WS_METHODS.projectsReadTabularFile) {
+    return {
+      relativePath: typeof body.relativePath === "string" ? body.relativePath : "",
+      previewKind: "delimited-grid",
+      kind: "csv",
+      delimiter: ",",
+      sizeBytes: 12,
+      mtimeMs: 1,
+      capabilities: { canEditInRoom: true },
+      sheets: [
+        {
+          name: "Sheet1",
+          rowCount: 1,
+          columnCount: 2,
+          data: [["name", "owner"]],
+          merges: [],
+          hiddenRows: [],
+          hiddenColumns: [],
+          cellMeta: [],
+        },
+      ],
+    };
+  }
+  if (tag === WS_METHODS.projectsReadTabularMedia) {
+    return {
+      mediaId: typeof body.mediaId === "string" ? body.mediaId : "0",
+      mimeType: "image/png",
+      contentBase64: ONE_PIXEL_PNG_BASE64,
+    };
+  }
   if (tag === WS_METHODS.projectsWriteFile) {
+    return {
+      relativePath: typeof body.relativePath === "string" ? body.relativePath : "",
+    };
+  }
+  if (tag === WS_METHODS.projectsWriteTabularFile) {
     return {
       relativePath: typeof body.relativePath === "string" ? body.relativePath : "",
     };
@@ -835,6 +872,82 @@ async function waitForComposerEditor(): Promise<HTMLElement> {
   return waitForElement(
     () => document.querySelector<HTMLElement>('[contenteditable="true"]'),
     "Unable to find composer editor.",
+  );
+}
+
+function roomSpreadsheetGridText(): string {
+  return (
+    document.querySelector<HTMLElement>('[aria-label="Room spreadsheet grid"]')?.textContent ?? ""
+  );
+}
+
+type TestSpreadsheetGridElement = HTMLElement & {
+  __roomHotInstance?: {
+    getData: () => unknown[][];
+    getCellMeta?: (row: number, col: number) => { comment?: { value?: string } | undefined };
+    render: () => void;
+    selectCell?: (row: number, col: number) => void;
+    setDataAtCell: (row: number, col: number, value: unknown, source?: string) => void;
+  };
+};
+
+async function waitForSpreadsheetCell(text: string): Promise<HTMLElement> {
+  return waitForElement(
+    () =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>('[aria-label="Room spreadsheet grid"] td'),
+      ).find((element) => element.textContent?.trim() === text) ?? null,
+    `Unable to find spreadsheet cell with text "${text}".`,
+  );
+}
+
+async function editSpreadsheetCell(currentText: string, nextText: string): Promise<void> {
+  await waitForSpreadsheetCell(currentText);
+  const grid = await waitForElement(
+    () =>
+      document.querySelector<TestSpreadsheetGridElement>('[aria-label="Room spreadsheet grid"]'),
+    "Unable to find the Room spreadsheet grid.",
+  );
+
+  await vi.waitFor(
+    () => {
+      expect(grid.__roomHotInstance).toBeTruthy();
+    },
+    { timeout: 8_000, interval: 16 },
+  );
+
+  const hotInstance = grid.__roomHotInstance;
+  if (!hotInstance) {
+    throw new Error("Unable to access the Room spreadsheet instance.");
+  }
+
+  const coordinates = hotInstance.getData().reduce<{ row: number; col: number } | null>(
+    (found, row, rowIndex) =>
+      found ??
+      row.reduce<{ row: number; col: number } | null>((cellFound, value, colIndex) => {
+        if (cellFound) {
+          return cellFound;
+        }
+        return String(value ?? "").trim() === currentText ? { row: rowIndex, col: colIndex } : null;
+      }, null),
+    null,
+  );
+
+  expect(coordinates).toBeTruthy();
+  if (!coordinates) {
+    throw new Error(`Unable to find spreadsheet cell "${currentText}" in grid data.`);
+  }
+
+  hotInstance.selectCell?.(coordinates.row, coordinates.col);
+  hotInstance.setDataAtCell(coordinates.row, coordinates.col, nextText, "edit");
+  hotInstance.render();
+
+  await vi.waitFor(
+    () => {
+      expect(roomSpreadsheetGridText()).toContain(nextText);
+      expect(document.body.textContent).toContain("Unsaved");
+    },
+    { timeout: 8_000, interval: 16 },
   );
 }
 
@@ -1630,6 +1743,13 @@ describe("ChatView timeline estimator parity (full app)", () => {
           expect(listDirectoryCalls).toContainEqual({
             cwd: "/repo/worktrees/feature-room",
           });
+          expect(
+            wsRequests.find(
+              (request) =>
+                request._tag === WS_METHODS.subscribeProjectWorkspaceChanges &&
+                request.cwd === "/repo/worktrees/feature-room",
+            ),
+          ).toBeTruthy();
           expect(document.body.textContent).toContain("src");
         },
         { timeout: 8_000, interval: 16 },
@@ -2415,7 +2535,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
             wsRequests.find(
               (request) =>
                 request._tag === WS_METHODS.subscribeProjectWorkspaceChanges &&
-                request.selectedFilePath === "README.md",
+                request.cwd === "/repo/project",
             ),
           ).toBeTruthy();
         },
@@ -2507,6 +2627,878 @@ describe("ChatView timeline estimator parity (full app)", () => {
           expect(document.body.textContent).toContain("File changed on disk");
           expect(document.body.textContent).toContain("My local draft");
           expect(document.body.textContent).not.toContain("Changed outside Room.");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("renders csv previews and saves spreadsheet edits through the tabular RPC", async () => {
+    let csvRows = [
+      ["name", "owner"],
+      ["API", "Ada"],
+    ];
+    let fileMtimeMs = 1;
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-csv" as MessageId,
+        targetText: "room csv preview",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "planning.csv", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (
+          body._tag === WS_METHODS.projectsReadTabularFile &&
+          body.relativePath === "planning.csv"
+        ) {
+          return {
+            relativePath: "planning.csv",
+            previewKind: "delimited-grid" as const,
+            kind: "csv" as const,
+            delimiter: "," as const,
+            sizeBytes: 32,
+            mtimeMs: fileMtimeMs,
+            capabilities: { canEditInRoom: true as const },
+            sheets: [
+              {
+                name: "Sheet1",
+                rowCount: csvRows.length,
+                columnCount: csvRows[0]?.length ?? 0,
+                data: csvRows,
+                merges: [],
+                hiddenRows: [],
+                hiddenColumns: [],
+                cellMeta: [],
+              },
+            ],
+          };
+        }
+        if (
+          body._tag === WS_METHODS.projectsWriteTabularFile &&
+          body.relativePath === "planning.csv"
+        ) {
+          for (const patch of body.patches as Array<{
+            row: number;
+            col: number;
+            value: string | number | boolean | null;
+          }>) {
+            while (csvRows.length <= patch.row) {
+              csvRows.push([]);
+            }
+            while ((csvRows[patch.row]?.length ?? 0) <= patch.col) {
+              csvRows[patch.row]?.push("");
+            }
+            csvRows[patch.row]![patch.col] = patch.value === null ? "" : String(patch.value);
+          }
+          fileMtimeMs += 1;
+          return { relativePath: "planning.csv" };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const csvTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("planning.csv"),
+          ) ?? null,
+        "Unable to find planning.csv in the Room tree.",
+      );
+      csvTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(roomSpreadsheetGridText()).toContain("Ada");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      await editSpreadsheetCell("Ada", "Sam");
+
+      const saveButton = await waitForElement(
+        () => document.querySelector<HTMLButtonElement>('button[aria-label="Save room file"]'),
+        "Unable to find the Room save button.",
+      );
+      saveButton.click();
+
+      await vi.waitFor(
+        () => {
+          const writeRequest = wsRequests.findLast(
+            (request) => request._tag === WS_METHODS.projectsWriteTabularFile,
+          ) as
+            | {
+                _tag: string;
+                relativePath?: string;
+                patches?: Array<{
+                  sheetName: string;
+                  row: number;
+                  col: number;
+                  value: unknown;
+                  valueKind: string;
+                }>;
+              }
+            | undefined;
+
+          expect(writeRequest?.relativePath).toBe("planning.csv");
+          expect(writeRequest?.patches).toEqual([
+            {
+              sheetName: "Sheet1",
+              row: 1,
+              col: 1,
+              value: "Sam",
+              valueKind: "text",
+            },
+          ]);
+          expect(roomSpreadsheetGridText()).toContain("Sam");
+          expect(document.body.textContent).toContain("Saved");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("renders styled xlsx previews with worksheet tabs, comments, and images", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-xlsx-preview" as MessageId,
+        targetText: "room xlsx styled preview",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "planning.xlsx", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (
+          body._tag === WS_METHODS.projectsReadTabularFile &&
+          body.relativePath === "planning.xlsx"
+        ) {
+          return {
+            relativePath: "planning.xlsx",
+            previewKind: "workbook-presentation" as const,
+            kind: "xlsx" as const,
+            sizeBytes: 96,
+            mtimeMs: 1,
+            capabilities: { canEditInRoom: false as const },
+            presentationFidelity: "full" as const,
+            previewNotices: [],
+            dateSystem: "1900" as const,
+            theme: {
+              colors: {
+                accent1: "#4F81BD",
+              },
+            },
+            styles: [
+              {
+                declarations: {
+                  "background-color": "#FCE4D6",
+                  color: "#112233",
+                  "font-weight": "700",
+                },
+              },
+            ],
+            sheets: [
+              {
+                name: "Summary",
+                state: "visible" as const,
+                tabColor: "#FF0000",
+                showGridLines: false,
+                rowCount: 3,
+                columnCount: 3,
+                rawValues: [
+                  ["Milestone", "Owner", "Notes"],
+                  ["Alpha", "Ada", "Styled"],
+                  ["Beta", 0.5, ""],
+                ],
+                displayText: [
+                  ["Milestone", "Owner", "Notes"],
+                  ["Alpha", "Ada", "Styled"],
+                  ["Beta", "50%", ""],
+                ],
+                valueKinds: [
+                  ["text", "text", "text"],
+                  ["text", "text", "text"],
+                  ["text", "number", "empty"],
+                ],
+                styleIds: [
+                  [null, null, null],
+                  [null, null, 0],
+                  [null, null, null],
+                ],
+                merges: [],
+                hiddenRows: [],
+                hiddenColumns: [],
+                frozenPane: {
+                  rowCount: 1,
+                  columnCount: 1,
+                },
+                rowHeights: [28, 28, 28],
+                columnWidths: [120, 120, 120],
+                comments: [
+                  {
+                    row: 1,
+                    col: 0,
+                    text: "Remember this",
+                  },
+                ],
+                images: [
+                  {
+                    mediaId: "0",
+                    leftPx: 90,
+                    topPx: 44,
+                    widthPx: 24,
+                    heightPx: 24,
+                  },
+                ],
+                backgroundMediaId: "0",
+                conditionalOverlays: [],
+              },
+              {
+                name: "Backlog",
+                state: "visible" as const,
+                showGridLines: true,
+                rowCount: 2,
+                columnCount: 1,
+                rawValues: [["Task"], ["P1"]],
+                displayText: [["Task"], ["P1"]],
+                valueKinds: [["text"], ["text"]],
+                styleIds: [[null], [null]],
+                merges: [],
+                hiddenRows: [],
+                hiddenColumns: [],
+                rowHeights: [28, 28],
+                columnWidths: [160],
+                comments: [],
+                images: [],
+                conditionalOverlays: [],
+              },
+            ],
+          };
+        }
+        if (
+          body._tag === WS_METHODS.projectsReadTabularMedia &&
+          body.relativePath === "planning.xlsx"
+        ) {
+          return {
+            mediaId: "0",
+            mimeType: "image/png",
+            contentBase64: ONE_PIXEL_PNG_BASE64,
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const workbookTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("planning.xlsx"),
+          ) ?? null,
+        "Unable to find planning.xlsx in the Room tree.",
+      );
+      workbookTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(roomSpreadsheetGridText()).toContain("Styled");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const styledCell = await waitForSpreadsheetCell("Styled");
+      await vi.waitFor(
+        () => {
+          const styledContent = styledCell.querySelector<HTMLElement>(".room-xlsx-cell-content");
+          expect(styledContent).toBeTruthy();
+          expect(getComputedStyle(styledContent!).backgroundColor).toBe("rgb(252, 228, 214)");
+          expect(["700", "bold"]).toContain(getComputedStyle(styledContent!).fontWeight);
+          expect(
+            document.querySelector<HTMLButtonElement>('button[aria-label="Save room file"]'),
+          ).toBeNull();
+          expect(
+            document.querySelectorAll('[data-room-workbook-presentation="true"] img').length,
+          ).toBeGreaterThan(0);
+          expect(
+            wsRequests.some((request) => request._tag === WS_METHODS.projectsReadTabularMedia),
+          ).toBe(true);
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const grid = document.querySelector<TestSpreadsheetGridElement>(
+        '[aria-label="Room spreadsheet grid"]',
+      );
+      expect(grid?.__roomHotInstance?.getCellMeta?.(1, 0)?.comment?.value).toBe("Remember this");
+
+      const backlogTab = await waitForElement(
+        () => document.querySelector<HTMLElement>('[aria-label="Show worksheet Backlog"]'),
+        "Unable to find the Backlog worksheet tab.",
+      );
+      backlogTab.click();
+
+      await vi.waitFor(
+        () => {
+          expect(roomSpreadsheetGridText()).toContain("P1");
+          expect(roomSpreadsheetGridText()).not.toContain("Styled");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("renders and saves pipe-delimited previews beyond csv and tsv", async () => {
+    let psvRows = [
+      ["Milestone", "Owner"],
+      ["Alpha", "Ada"],
+    ];
+    let fileMtimeMs = 1;
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-psv-save" as MessageId,
+        targetText: "room psv save",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "planning.psv", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (
+          body._tag === WS_METHODS.projectsReadTabularFile &&
+          body.relativePath === "planning.psv"
+        ) {
+          return {
+            relativePath: "planning.psv",
+            previewKind: "delimited-grid" as const,
+            kind: "psv" as const,
+            delimiter: "|" as const,
+            sizeBytes: 96,
+            mtimeMs: fileMtimeMs,
+            capabilities: { canEditInRoom: true as const },
+            sheets: [
+              {
+                name: "Sheet1",
+                rowCount: psvRows.length,
+                columnCount: psvRows[0]?.length ?? 0,
+                data: psvRows,
+                merges: [],
+                hiddenRows: [],
+                hiddenColumns: [],
+                cellMeta: [],
+              },
+            ],
+          };
+        }
+        if (
+          body._tag === WS_METHODS.projectsWriteTabularFile &&
+          body.relativePath === "planning.psv"
+        ) {
+          for (const patch of body.patches as Array<{
+            row: number;
+            col: number;
+            value: string | number | boolean | null;
+          }>) {
+            while (psvRows.length <= patch.row) {
+              psvRows.push([]);
+            }
+            while ((psvRows[patch.row]?.length ?? 0) <= patch.col) {
+              psvRows[patch.row]?.push("");
+            }
+            psvRows[patch.row]![patch.col] = patch.value === null ? "" : String(patch.value);
+          }
+          fileMtimeMs += 1;
+          return { relativePath: "planning.psv" };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const psvTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("planning.psv"),
+          ) ?? null,
+        "Unable to find planning.psv in the Room tree.",
+      );
+      psvTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(roomSpreadsheetGridText()).toContain("Ada");
+          expect(document.body.textContent).toContain("Pipe-delimited text");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      await editSpreadsheetCell("Ada", "Sam");
+
+      const saveButton = await waitForElement(
+        () => document.querySelector<HTMLButtonElement>('button[aria-label="Save room file"]'),
+        "Unable to find the Room save button.",
+      );
+      saveButton.click();
+
+      await vi.waitFor(
+        () => {
+          const writeRequest = wsRequests.findLast(
+            (request) => request._tag === WS_METHODS.projectsWriteTabularFile,
+          ) as
+            | {
+                _tag: string;
+                relativePath?: string;
+                patches?: Array<{
+                  sheetName: string;
+                  row: number;
+                  col: number;
+                  value: unknown;
+                  valueKind: string;
+                }>;
+              }
+            | undefined;
+
+          expect(writeRequest?.relativePath).toBe("planning.psv");
+          expect(writeRequest?.patches).toEqual([
+            {
+              sheetName: "Sheet1",
+              row: 1,
+              col: 1,
+              value: "Sam",
+              valueKind: "text",
+            },
+          ]);
+          expect(roomSpreadsheetGridText()).toContain("Sam");
+          expect(document.body.textContent).toContain("Saved");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("renders partial workbook previews for legacy container formats without edit controls", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-xlsb-preview" as MessageId,
+        targetText: "room xlsb preview",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "planning.xlsb", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (
+          body._tag === WS_METHODS.projectsReadTabularFile &&
+          body.relativePath === "planning.xlsb"
+        ) {
+          return {
+            relativePath: "planning.xlsb",
+            previewKind: "workbook-presentation" as const,
+            kind: "xlsb" as const,
+            sizeBytes: 96,
+            mtimeMs: 1,
+            capabilities: { canEditInRoom: false as const },
+            presentationFidelity: "partial" as const,
+            previewNotices: [
+              "Simplified preview: some workbook visuals are not available in Room for this file format.",
+            ],
+            dateSystem: "1900" as const,
+            theme: {
+              colors: {},
+            },
+            styles: [],
+            sheets: [
+              {
+                name: "Summary",
+                state: "visible" as const,
+                showGridLines: true,
+                rowCount: 2,
+                columnCount: 2,
+                rawValues: [
+                  ["Milestone", "Owner"],
+                  ["Alpha", "Ada"],
+                ],
+                displayText: [
+                  ["Milestone", "Owner"],
+                  ["Alpha", "Ada"],
+                ],
+                valueKinds: [
+                  ["text", "text"],
+                  ["text", "text"],
+                ],
+                styleIds: [
+                  [null, null],
+                  [null, null],
+                ],
+                merges: [],
+                hiddenRows: [],
+                hiddenColumns: [],
+                rowHeights: [28, 28],
+                columnWidths: [120, 120],
+                comments: [],
+                images: [],
+                conditionalOverlays: [],
+              },
+              {
+                name: "Backlog",
+                state: "visible" as const,
+                showGridLines: true,
+                rowCount: 2,
+                columnCount: 1,
+                rawValues: [["Task"], ["P1"]],
+                displayText: [["Task"], ["P1"]],
+                valueKinds: [["text"], ["text"]],
+                styleIds: [[null], [null]],
+                merges: [],
+                hiddenRows: [],
+                hiddenColumns: [],
+                rowHeights: [28, 28],
+                columnWidths: [120],
+                comments: [],
+                images: [],
+                conditionalOverlays: [],
+              },
+            ],
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const workbookTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("planning.xlsb"),
+          ) ?? null,
+        "Unable to find planning.xlsb in the Room tree.",
+      );
+      workbookTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(roomSpreadsheetGridText()).toContain("Ada");
+          expect(document.body.textContent).toContain("Simplified Workbook Preview");
+          expect(document.body.textContent).toContain("XLSB workbook");
+          expect(
+            document.querySelector<HTMLButtonElement>('button[aria-label="Save room file"]'),
+          ).toBeNull();
+          expect(document.body.textContent).not.toContain("Unsaved");
+          expect(document.body.textContent).not.toContain("File changed on disk");
+          expect(
+            wsRequests.some((request) => request._tag === WS_METHODS.projectsReadTabularMedia),
+          ).toBe(false);
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const backlogTab = await waitForElement(
+        () => document.querySelector<HTMLElement>('[aria-label="Show worksheet Backlog"]'),
+        "Unable to find the Backlog worksheet tab.",
+      );
+      backlogTab.click();
+
+      await vi.waitFor(
+        () => {
+          expect(roomSpreadsheetGridText()).toContain("P1");
+          expect(roomSpreadsheetGridText()).not.toContain("Ada");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("auto-refreshes a clean selected xlsx preview after an external workspace change", async () => {
+    let activeRows = [
+      ["Milestone", "Owner"],
+      ["Alpha", "Ada"],
+    ];
+    let fileMtimeMs = 1;
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-workbook-refresh" as MessageId,
+        targetText: "room workbook refresh",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "planning.xlsx", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (
+          body._tag === WS_METHODS.projectsReadTabularFile &&
+          body.relativePath === "planning.xlsx"
+        ) {
+          return {
+            relativePath: "planning.xlsx",
+            previewKind: "workbook-presentation" as const,
+            kind: "xlsx" as const,
+            sizeBytes: 96,
+            mtimeMs: fileMtimeMs,
+            capabilities: { canEditInRoom: false as const },
+            presentationFidelity: "full" as const,
+            previewNotices: [],
+            dateSystem: "1900" as const,
+            theme: {
+              colors: {},
+            },
+            styles: [],
+            sheets: [
+              {
+                name: "Summary",
+                state: "visible" as const,
+                showGridLines: true,
+                rowCount: activeRows.length,
+                columnCount: activeRows[0]?.length ?? 0,
+                rawValues: activeRows,
+                displayText: activeRows,
+                valueKinds: activeRows.map((row) => row.map(() => "text" as const)),
+                styleIds: activeRows.map((row) => row.map(() => null)),
+                merges: [],
+                hiddenRows: [],
+                hiddenColumns: [],
+                rowHeights: activeRows.map(() => 28),
+                columnWidths: (activeRows[0] ?? []).map(() => 120),
+                comments: [],
+                images: [],
+                conditionalOverlays: [],
+              },
+            ],
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const workbookTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("planning.xlsx"),
+          ) ?? null,
+        "Unable to find planning.xlsx in the Room tree.",
+      );
+      workbookTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(roomSpreadsheetGridText()).toContain("Alpha");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      activeRows = [
+        ["Milestone", "Owner"],
+        ["Beta", "Sam"],
+      ];
+      fileMtimeMs = 2;
+      rpcHarness.emitStreamValue(WS_METHODS.subscribeProjectWorkspaceChanges, {
+        _tag: "pathChanged",
+        relativePath: "planning.xlsx",
+        exists: true,
+        entryKind: "file",
+      });
+
+      await vi.waitFor(
+        () => {
+          expect(roomSpreadsheetGridText()).toContain("Beta");
+          expect(roomSpreadsheetGridText()).not.toContain("Alpha");
+          expect(document.body.textContent).not.toContain("File changed on disk");
+          expect(
+            document.querySelector<HTMLButtonElement>('button[aria-label="Save room file"]'),
+          ).toBeNull();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("keeps a dirty csv draft and shows a conflict banner after an external workspace change", async () => {
+    let activeRows = [
+      ["Milestone", "Owner"],
+      ["Alpha", "Ada"],
+    ];
+    let fileMtimeMs = 1;
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-csv-conflict" as MessageId,
+        targetText: "room csv conflict",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "planning.csv", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (
+          body._tag === WS_METHODS.projectsReadTabularFile &&
+          body.relativePath === "planning.csv"
+        ) {
+          return {
+            relativePath: "planning.csv",
+            previewKind: "delimited-grid" as const,
+            kind: "csv" as const,
+            delimiter: "," as const,
+            sizeBytes: 96,
+            mtimeMs: fileMtimeMs,
+            capabilities: { canEditInRoom: true as const },
+            sheets: [
+              {
+                name: "Summary",
+                rowCount: activeRows.length,
+                columnCount: activeRows[0]?.length ?? 0,
+                data: activeRows,
+                merges: [],
+                hiddenRows: [],
+                hiddenColumns: [],
+                cellMeta: [],
+              },
+            ],
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const workbookTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("planning.csv"),
+          ) ?? null,
+        "Unable to find planning.csv in the Room tree.",
+      );
+      workbookTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(roomSpreadsheetGridText()).toContain("Ada");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      await editSpreadsheetCell("Ada", "Sam");
+
+      activeRows = [
+        ["Milestone", "Owner"],
+        ["Beta", "Zoe"],
+      ];
+      fileMtimeMs = 2;
+      rpcHarness.emitStreamValue(WS_METHODS.subscribeProjectWorkspaceChanges, {
+        _tag: "pathChanged",
+        relativePath: "planning.csv",
+        exists: true,
+        entryKind: "file",
+      });
+
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("File changed on disk");
+          expect(roomSpreadsheetGridText()).toContain("Sam");
+          expect(roomSpreadsheetGridText()).not.toContain("Zoe");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("falls back to the unsupported document state for unsupported workbook visuals", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-workbook-unsupported" as MessageId,
+        targetText: "room workbook unsupported",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "massive.xlsx", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (
+          body._tag === WS_METHODS.projectsReadTabularFile &&
+          body.relativePath === "massive.xlsx"
+        ) {
+          return {
+            relativePath: "massive.xlsx",
+            previewKind: "workbook-presentation" as const,
+            kind: "xlsx" as const,
+            sizeBytes: 96,
+            mtimeMs: 1,
+            capabilities: { canEditInRoom: false as const },
+            presentationFidelity: "full" as const,
+            previewNotices: [],
+            dateSystem: "1900" as const,
+            theme: {
+              colors: {},
+            },
+            styles: [],
+            sheets: [],
+            unsupportedVisualReason:
+              "This workbook contains Excel table themes that Room can’t render faithfully yet.",
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const workbookTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("massive.xlsx"),
+          ) ?? null,
+        "Unable to find massive.xlsx in the Room tree.",
+      );
+      workbookTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("This document isn’t supported here yet");
+          expect(document.body.textContent).toContain("Excel table themes");
         },
         { timeout: 8_000, interval: 16 },
       );
@@ -2626,6 +3618,9 @@ describe("ChatView timeline estimator parity (full app)", () => {
       { path: "docs", kind: "directory" },
       { path: "src", kind: "directory" },
     ];
+    const docsEntries: Array<{ path: string; kind: "file" | "directory"; parentPath?: string }> = [
+      { path: "docs/guide.md", kind: "file", parentPath: "docs" },
+    ];
     const srcEntries: Array<{ path: string; kind: "file" | "directory"; parentPath?: string }> = [
       { path: "src/index.ts", kind: "file", parentPath: "src" },
     ];
@@ -2649,7 +3644,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
         }
         if (body.directoryPath === "docs") {
           return {
-            entries: [{ path: "docs/guide.md", kind: "file" as const, parentPath: "docs" }],
+            entries: docsEntries,
             truncated: false,
           };
         }
@@ -2691,6 +3686,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
       ).length;
 
       rootEntries.splice(1, 0, { path: "CHANGELOG.md", kind: "file" });
+      docsEntries.push({ path: "docs/new.md", kind: "file", parentPath: "docs" });
       srcEntries.push({ path: "src/new.ts", kind: "file", parentPath: "src" });
 
       rpcHarness.emitStreamValue(WS_METHODS.subscribeProjectWorkspaceChanges, {
@@ -2726,6 +3722,23 @@ describe("ChatView timeline estimator parity (full app)", () => {
             request._tag === WS_METHODS.projectsListDirectory && request.directoryPath === "docs",
         ).length,
       ).toBe(docsRequestCountBefore);
+
+      const docsFolderItem = await waitForElement(
+        () =>
+          Array.from(
+            document.querySelectorAll<HTMLElement>('[role="treeitem"][aria-expanded]'),
+          ).find((element) => element.textContent?.includes("docs")) ?? null,
+        "Unable to find docs in the Room tree.",
+      );
+      docsFolderItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(docsFolderItem.getAttribute("aria-expanded")).toBe("true");
+          expect(document.body.textContent).toContain("new.md");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
     } finally {
       await mounted.cleanup();
     }

@@ -55,6 +55,18 @@
     "./dotcanvas": {
       "types": "./src/dotcanvas.ts",
       "import": "./src/dotcanvas.ts"
+    },
+    "./branding": {
+      "types": "./src/branding.ts",
+      "import": "./src/branding.ts"
+    },
+    "./filePreviews": {
+      "types": "./src/filePreviews.ts",
+      "import": "./src/filePreviews.ts"
+    },
+    "./xlsxPresentation": {
+      "types": "./src/xlsxPresentation.ts",
+      "import": "./src/xlsxPresentation.ts"
     }
   },
   "scripts": {
@@ -64,7 +76,8 @@
   },
   "dependencies": {
     "@t3tools/contracts": "workspace:*",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "ssf": "^0.11.2"
   },
   "devDependencies": {
     "@effect/language-service": "catalog:",

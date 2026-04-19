@@ -28,9 +28,15 @@
     "@effect/platform-node": "catalog:",
     "@effect/sql-sqlite-bun": "catalog:",
     "@pierre/diffs": "^1.1.0-beta.16",
+    "csv-parse": "^6.2.1",
+    "csv-stringify": "^6.7.0",
     "effect": "catalog:",
+    "exceljs": "^4.4.0",
+    "fast-xml-parser": "^5.7.0",
+    "jszip": "^3.10.1",
     "node-pty": "^1.1.0",
-    "open": "^10.1.0"
+    "open": "^10.1.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@effect/language-service": "catalog:",

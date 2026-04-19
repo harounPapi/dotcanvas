@@ -42,6 +42,9 @@ export default defineConfig({
   define: {
     // In dev mode, tell the web app where the WebSocket server lives
     "import.meta.env.VITE_WS_URL": JSON.stringify(process.env.VITE_WS_URL ?? ""),
+    "import.meta.env.VITE_HANDSONTABLE_LICENSE_KEY": JSON.stringify(
+      process.env.VITE_HANDSONTABLE_LICENSE_KEY ?? "",
+    ),
     "import.meta.env.APP_VERSION": JSON.stringify(pkg.version),
   },
   resolve: {

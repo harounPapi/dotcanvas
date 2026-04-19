@@ -4,6 +4,7 @@ import type { NativeApi, DesktopBridge } from "@t3tools/contracts";
 
 interface ImportMetaEnv {
   readonly APP_VERSION: string;
+  readonly VITE_HANDSONTABLE_LICENSE_KEY?: string;
 }
 
 interface ImportMeta {
