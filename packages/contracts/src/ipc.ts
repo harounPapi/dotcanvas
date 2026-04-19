@@ -31,6 +31,8 @@ import type {
   ProjectCreateDirectoryResult,
   ProjectListDirectoryInput,
   ProjectListDirectoryResult,
+  ProjectReadDocumentFileInput,
+  ProjectReadDocumentFileResult,
   ProjectReadFileInput,
   ProjectReadFileResult,
   ProjectReadTabularFileInput,
@@ -173,6 +175,9 @@ export interface NativeApi {
         onResubscribe?: () => void;
       },
     ) => () => void;
+    readDocumentFile: (
+      input: ProjectReadDocumentFileInput,
+    ) => Promise<ProjectReadDocumentFileResult>;
     readFile: (input: ProjectReadFileInput) => Promise<ProjectReadFileResult>;
     readTabularFile: (input: ProjectReadTabularFileInput) => Promise<ProjectReadTabularFileResult>;
     readTabularMedia: (

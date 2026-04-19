@@ -36,6 +36,17 @@ describe("filePreviews", () => {
       kind: "tabular",
       tabularKind: "fods",
     });
+    expect(classifyFilePreview("deck.pdf")).toEqual({
+      kind: "document",
+      documentKind: "pdf",
+    });
+    expect(classifyFilePreview("brief.docx")).toEqual({
+      kind: "document",
+      documentKind: "docx",
+    });
+    expect(classifyFilePreview("legacy.doc")).toEqual({
+      kind: "unsupported",
+    });
   });
 
   it("detects delimited previews for known text-like table formats", () => {

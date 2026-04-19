@@ -48,6 +48,7 @@ import { WorkspaceEntriesLive } from "./workspace/Layers/WorkspaceEntries";
 import { WorkspaceChangeBroadcasterLive } from "./workspace/Layers/WorkspaceChangeBroadcaster";
 import { WorkspaceFileSystemLive } from "./workspace/Layers/WorkspaceFileSystem";
 import { WorkspacePathsLive } from "./workspace/Layers/WorkspacePaths";
+import { WorkspaceDocumentFileSystemLive } from "./workspace/Layers/WorkspaceDocumentFileSystem";
 import { WorkspaceTabularFileSystemLive } from "./workspace/Layers/WorkspaceTabularFileSystem";
 import { ProjectSetupScriptRunnerLive } from "./project/Layers/ProjectSetupScriptRunner";
 import { ObservabilityLive } from "./observability/Layers/Observability";
@@ -179,6 +180,7 @@ const WorkspaceLayerLive = Layer.mergeAll(
   WorkspacePathsLive,
   WorkspaceEntriesLive.pipe(Layer.provide(WorkspacePathsLive)),
   WorkspaceChangeBroadcasterLive.pipe(Layer.provide(WorkspacePathsLive)),
+  WorkspaceDocumentFileSystemLive.pipe(Layer.provide(WorkspacePathsLive)),
   WorkspaceFileSystemLive.pipe(
     Layer.provide(WorkspacePathsLive),
     Layer.provide(WorkspaceEntriesLive.pipe(Layer.provide(WorkspacePathsLive))),

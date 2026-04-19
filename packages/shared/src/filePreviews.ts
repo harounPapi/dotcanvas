@@ -15,6 +15,10 @@ const WORKBOOK_TABULAR_FILE_KIND_BY_EXTENSION = {
   ".ods": "ods",
   ".fods": "fods",
 } as const;
+const DOCUMENT_FILE_KIND_BY_EXTENSION = {
+  ".pdf": "pdf",
+  ".docx": "docx",
+} as const;
 const TABULAR_FILE_KIND_BY_EXTENSION = {
   ...DELIMITED_TABULAR_FILE_KIND_BY_EXTENSION,
   ...WORKBOOK_TABULAR_FILE_KIND_BY_EXTENSION,
@@ -44,12 +48,15 @@ export type SupportedWorkbookTabularFileKind =
 export type SupportedTabularFileKind =
   | SupportedDelimitedTabularFileKind
   | SupportedWorkbookTabularFileKind;
+export type SupportedDocumentFileKind =
+  (typeof DOCUMENT_FILE_KIND_BY_EXTENSION)[keyof typeof DOCUMENT_FILE_KIND_BY_EXTENSION];
 export type SupportedDelimitedTabularDelimiter = (typeof DELIMITED_TABULAR_DELIMITERS)[number];
 export type SupportedTabularLineEnding = "\n" | "\r\n" | "\r";
 
 export type FilePreviewDescriptor =
   | { kind: "markdown" }
   | { kind: "tabular"; tabularKind: SupportedTabularFileKind }
+  | { kind: "document"; documentKind: SupportedDocumentFileKind }
   | { kind: "unsupported" };
 
 type DelimiterScore = {
@@ -157,6 +164,12 @@ export function classifyFilePreview(pathValue: string): FilePreviewDescriptor {
     }
   }
 
+  for (const [extension, documentKind] of Object.entries(DOCUMENT_FILE_KIND_BY_EXTENSION)) {
+    if (normalizedPath.endsWith(extension)) {
+      return { kind: "document", documentKind };
+    }
+  }
+
   return { kind: "unsupported" };
 }
 
@@ -166,6 +179,10 @@ export function isMarkdownPreviewPath(pathValue: string): boolean {
 
 export function isTabularPreviewPath(pathValue: string): boolean {
   return classifyFilePreview(pathValue).kind === "tabular";
+}
+
+export function isDocumentPreviewPath(pathValue: string): boolean {
+  return classifyFilePreview(pathValue).kind === "document";
 }
 
 export function isDelimitedTabularFileKind(

@@ -12,6 +12,7 @@ const PROJECT_WRITE_FILE_PATH_MAX_LENGTH = 512;
 const PROJECT_DIRECTORY_NAME_MAX_LENGTH = 255;
 export const PROJECT_READ_FILE_MAX_BYTES = 512 * 1024;
 export const PROJECT_TABULAR_READ_FILE_MAX_BYTES = 8 * 1024 * 1024;
+export const PROJECT_DOCUMENT_READ_FILE_MAX_BYTES = 16 * 1024 * 1024;
 export const PROJECT_TABULAR_MAX_SHEETS = 32;
 export const PROJECT_TABULAR_MAX_COLUMNS = 256;
 export const PROJECT_TABULAR_MAX_TOTAL_CELLS = 200_000;
@@ -106,6 +107,39 @@ export type ProjectReadFileResult = typeof ProjectReadFileResult.Type;
 
 export class ProjectReadFileError extends Schema.TaggedErrorClass<ProjectReadFileError>()(
   "ProjectReadFileError",
+  {
+    message: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect),
+  },
+) {}
+
+export const ProjectDocumentFileKind = Schema.Literals(["pdf", "docx"]);
+export type ProjectDocumentFileKind = typeof ProjectDocumentFileKind.Type;
+
+export const ProjectReadDocumentFileInput = Schema.Struct({
+  cwd: TrimmedNonEmptyString,
+  relativePath: TrimmedNonEmptyString.check(Schema.isMaxLength(PROJECT_WRITE_FILE_PATH_MAX_LENGTH)),
+});
+export type ProjectReadDocumentFileInput = typeof ProjectReadDocumentFileInput.Type;
+
+export const ProjectDocumentPreviewCapabilities = Schema.Struct({
+  canEditInRoom: Schema.Literal(false),
+});
+export type ProjectDocumentPreviewCapabilities = typeof ProjectDocumentPreviewCapabilities.Type;
+
+export const ProjectReadDocumentFileResult = Schema.Struct({
+  relativePath: TrimmedNonEmptyString,
+  kind: ProjectDocumentFileKind,
+  sizeBytes: NonNegativeInt,
+  mtimeMs: NonNegativeInt,
+  mimeType: TrimmedNonEmptyString,
+  capabilities: ProjectDocumentPreviewCapabilities,
+  contentBase64: TrimmedNonEmptyString,
+});
+export type ProjectReadDocumentFileResult = typeof ProjectReadDocumentFileResult.Type;
+
+export class ProjectReadDocumentFileError extends Schema.TaggedErrorClass<ProjectReadDocumentFileError>()(
+  "ProjectReadDocumentFileError",
   {
     message: TrimmedNonEmptyString,
     cause: Schema.optional(Schema.Defect),

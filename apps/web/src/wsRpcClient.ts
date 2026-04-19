@@ -65,6 +65,7 @@ export interface WsRpcClient {
       listener: (event: ProjectWorkspaceChangeEvent) => void,
       options?: StreamSubscriptionOptions,
     ) => () => void;
+    readonly readDocumentFile: RpcUnaryMethod<typeof WS_METHODS.projectsReadDocumentFile>;
     readonly readFile: RpcUnaryMethod<typeof WS_METHODS.projectsReadFile>;
     readonly readTabularFile: RpcUnaryMethod<typeof WS_METHODS.projectsReadTabularFile>;
     readonly readTabularMedia: RpcUnaryMethod<typeof WS_METHODS.projectsReadTabularMedia>;
@@ -183,6 +184,8 @@ export function createWsRpcClient(transport = new WsTransport()): WsRpcClient {
           listener,
           options,
         ),
+      readDocumentFile: (input) =>
+        transport.request((client) => client[WS_METHODS.projectsReadDocumentFile](input)),
       readFile: (input) =>
         transport.request((client) => client[WS_METHODS.projectsReadFile](input)),
       readTabularFile: (input) =>

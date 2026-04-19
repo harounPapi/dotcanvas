@@ -55,6 +55,7 @@ export function createWsNativeApi(): NativeApi {
       listDirectory: rpcClient.projects.listDirectory,
       onWorkspaceChange: (input, callback, options) =>
         rpcClient.projects.onWorkspaceChange(input, callback, options),
+      readDocumentFile: rpcClient.projects.readDocumentFile,
       readFile: rpcClient.projects.readFile,
       readTabularFile: rpcClient.projects.readTabularFile,
       readTabularMedia: rpcClient.projects.readTabularMedia,

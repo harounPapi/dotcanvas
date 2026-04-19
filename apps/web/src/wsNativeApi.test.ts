@@ -86,6 +86,7 @@ const rpcClientMock = {
         ) => void,
       ) => registerListener(workspaceChangeListeners, listener),
     ),
+    readDocumentFile: vi.fn(),
     readFile: vi.fn(),
     readTabularFile: vi.fn(),
     readTabularMedia: vi.fn(),
@@ -533,6 +534,40 @@ describe("wsNativeApi", () => {
     expect(rpcClientMock.projects.readFile).toHaveBeenCalledWith({
       cwd: "/tmp/project",
       relativePath: "DotCanvas/memory.md",
+    });
+  });
+
+  it("forwards project document reads to the project RPC", async () => {
+    rpcClientMock.projects.readDocumentFile.mockResolvedValue({
+      relativePath: "brief.pdf",
+      kind: "pdf",
+      sizeBytes: 42,
+      mtimeMs: 456,
+      mimeType: "application/pdf",
+      capabilities: { canEditInRoom: false },
+      contentBase64: "Zm9v",
+    });
+    const { createWsNativeApi } = await import("./wsNativeApi");
+
+    const api = createWsNativeApi();
+    await expect(
+      api.projects.readDocumentFile({
+        cwd: "/tmp/project",
+        relativePath: "brief.pdf",
+      }),
+    ).resolves.toEqual({
+      relativePath: "brief.pdf",
+      kind: "pdf",
+      sizeBytes: 42,
+      mtimeMs: 456,
+      mimeType: "application/pdf",
+      capabilities: { canEditInRoom: false },
+      contentBase64: "Zm9v",
+    });
+
+    expect(rpcClientMock.projects.readDocumentFile).toHaveBeenCalledWith({
+      cwd: "/tmp/project",
+      relativePath: "brief.pdf",
     });
   });
 

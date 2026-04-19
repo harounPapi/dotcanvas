@@ -15,6 +15,7 @@ import {
   ProjectBootstrapStartError,
   ProjectCreateDirectoryError,
   ProjectListDirectoryError,
+  ProjectReadDocumentFileError,
   ProjectReadFileError,
   ProjectReadTabularFileError,
   ProjectReadTabularMediaError,
@@ -61,6 +62,7 @@ import { ServerSettingsService } from "./serverSettings";
 import { TerminalManager } from "./terminal/Services/Manager";
 import { WorkspaceEntries } from "./workspace/Services/WorkspaceEntries";
 import { WorkspaceChangeBroadcaster } from "./workspace/Services/WorkspaceChangeBroadcaster";
+import { WorkspaceDocumentFileSystem } from "./workspace/Services/WorkspaceDocumentFileSystem";
 import {
   WorkspaceFileSystem,
   WorkspaceFileSystemWriteConflictError,
@@ -88,6 +90,7 @@ const WsRpcLayer = WsRpcGroup.toLayer(
     const startup = yield* ServerRuntimeStartup;
     const workspaceEntries = yield* WorkspaceEntries;
     const workspaceChangeBroadcaster = yield* WorkspaceChangeBroadcaster;
+    const workspaceDocumentFileSystem = yield* WorkspaceDocumentFileSystem;
     const workspaceFileSystem = yield* WorkspaceFileSystem;
     const workspaceTabularFileSystem = yield* WorkspaceTabularFileSystem;
     const projectSetupScriptRunner = yield* ProjectSetupScriptRunner;
@@ -590,6 +593,21 @@ const WsRpcLayer = WsRpcGroup.toLayer(
           workspaceFileSystem.readFile(input).pipe(
             Effect.mapError((cause) => {
               return new ProjectReadFileError({
+                message: Schema.is(WorkspacePathOutsideRootError)(cause)
+                  ? "Workspace file path must stay within the project root."
+                  : cause.detail,
+                cause,
+              });
+            }),
+          ),
+          { "rpc.aggregate": "workspace" },
+        ),
+      [WS_METHODS.projectsReadDocumentFile]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.projectsReadDocumentFile,
+          workspaceDocumentFileSystem.readDocumentFile(input).pipe(
+            Effect.mapError((cause) => {
+              return new ProjectReadDocumentFileError({
                 message: Schema.is(WorkspacePathOutsideRootError)(cause)
                   ? "Workspace file path must stay within the project root."
                   : cause.detail,

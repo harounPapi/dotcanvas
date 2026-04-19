@@ -102,6 +102,47 @@ describe("wsRpcClient", () => {
     expect(request).toHaveBeenCalledTimes(1);
   });
 
+  it("forwards project document read requests through the websocket transport", async () => {
+    const request: WsTransport["request"] = vi.fn(async <TSuccess>() => {
+      return {
+        relativePath: "brief.pdf",
+        kind: "pdf" as const,
+        sizeBytes: 42,
+        mtimeMs: 456,
+        mimeType: "application/pdf",
+        capabilities: { canEditInRoom: false as const },
+        contentBase64: "Zm9v",
+      } as TSuccess;
+    }) as WsTransport["request"];
+    const transport = {
+      dispose: vi.fn(async () => undefined),
+      reconnect: vi.fn(async () => undefined),
+      request,
+      requestStream: vi.fn(),
+      subscribe: vi.fn(),
+    } satisfies Pick<
+      WsTransport,
+      "dispose" | "reconnect" | "request" | "requestStream" | "subscribe"
+    >;
+
+    const client = createWsRpcClient(transport as unknown as WsTransport);
+    const result = await client.projects.readDocumentFile({
+      cwd: "/repo",
+      relativePath: "brief.pdf",
+    });
+
+    expect(result).toEqual({
+      relativePath: "brief.pdf",
+      kind: "pdf",
+      sizeBytes: 42,
+      mtimeMs: 456,
+      mimeType: "application/pdf",
+      capabilities: { canEditInRoom: false },
+      contentBase64: "Zm9v",
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
   it("forwards project spreadsheet read requests through the websocket transport", async () => {
     const request: WsTransport["request"] = vi.fn(async <TSuccess>() => {
       return {

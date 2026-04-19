@@ -1,5 +1,6 @@
 import type {
   ProjectListDirectoryResult,
+  ProjectReadDocumentFileResult,
   ProjectReadFileResult,
   ProjectReadTabularFileResult,
   ProjectSearchEntriesResult,
@@ -11,6 +12,8 @@ export const projectQueryKeys = {
   all: ["projects"] as const,
   listDirectory: (cwd: string | null, directoryPath: string | null) =>
     ["projects", "list-directory", cwd, directoryPath ?? "__root__"] as const,
+  readDocumentFile: (cwd: string | null, relativePath: string | null) =>
+    ["projects", "read-document-file", cwd, relativePath] as const,
   readFile: (cwd: string | null, relativePath: string | null) =>
     ["projects", "read-file", cwd, relativePath] as const,
   readTabularFile: (cwd: string | null, relativePath: string | null) =>
@@ -32,6 +35,15 @@ const EMPTY_READ_FILE_RESULT: ProjectReadFileResult = {
   contents: "",
   sizeBytes: 0,
   mtimeMs: 0,
+};
+const EMPTY_READ_DOCUMENT_FILE_RESULT: ProjectReadDocumentFileResult = {
+  relativePath: "",
+  kind: "pdf",
+  sizeBytes: 0,
+  mtimeMs: 0,
+  mimeType: "application/pdf",
+  capabilities: { canEditInRoom: false },
+  contentBase64: "AA==",
 };
 const EMPTY_READ_TABULAR_FILE_RESULT: ProjectReadTabularFileResult = {
   relativePath: "",
@@ -89,6 +101,28 @@ export function projectReadFileQueryOptions(input: {
     },
     staleTime: input.staleTime ?? DEFAULT_READ_FILE_STALE_TIME,
     placeholderData: (previous) => previous ?? EMPTY_READ_FILE_RESULT,
+  });
+}
+
+export function projectReadDocumentFileQueryOptions(input: {
+  cwd: string | null;
+  relativePath: string | null;
+  staleTime?: number;
+}) {
+  return queryOptions({
+    queryKey: projectQueryKeys.readDocumentFile(input.cwd, input.relativePath),
+    queryFn: async () => {
+      const api = ensureNativeApi();
+      if (!input.cwd || !input.relativePath) {
+        throw new Error("Workspace document reading is unavailable.");
+      }
+      return api.projects.readDocumentFile({
+        cwd: input.cwd,
+        relativePath: input.relativePath,
+      });
+    },
+    staleTime: input.staleTime ?? DEFAULT_READ_FILE_STALE_TIME,
+    placeholderData: (previous) => previous ?? EMPTY_READ_DOCUMENT_FILE_RESULT,
   });
 }
 

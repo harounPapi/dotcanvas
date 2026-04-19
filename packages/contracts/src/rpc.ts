@@ -63,6 +63,9 @@ import {
   ProjectListDirectoryError,
   ProjectListDirectoryInput,
   ProjectListDirectoryResult,
+  ProjectReadDocumentFileError,
+  ProjectReadDocumentFileInput,
+  ProjectReadDocumentFileResult,
   ProjectReadFileError,
   ProjectReadFileInput,
   ProjectReadFileResult,
@@ -117,6 +120,7 @@ export const WS_METHODS = {
   projectsBootstrapStart: "projects.bootstrapStart",
   projectsCreateDirectory: "projects.createDirectory",
   projectsListDirectory: "projects.listDirectory",
+  projectsReadDocumentFile: "projects.readDocumentFile",
   projectsReadFile: "projects.readFile",
   projectsReadTabularFile: "projects.readTabularFile",
   projectsReadTabularMedia: "projects.readTabularMedia",
@@ -214,6 +218,12 @@ export const WsProjectsReadFileRpc = Rpc.make(WS_METHODS.projectsReadFile, {
   payload: ProjectReadFileInput,
   success: ProjectReadFileResult,
   error: ProjectReadFileError,
+});
+
+export const WsProjectsReadDocumentFileRpc = Rpc.make(WS_METHODS.projectsReadDocumentFile, {
+  payload: ProjectReadDocumentFileInput,
+  success: ProjectReadDocumentFileResult,
+  error: ProjectReadDocumentFileError,
 });
 
 export const WsProjectsReadTabularFileRpc = Rpc.make(WS_METHODS.projectsReadTabularFile, {
@@ -472,6 +482,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsProjectsBootstrapStartRpc,
   WsProjectsCreateDirectoryRpc,
   WsProjectsListDirectoryRpc,
+  WsProjectsReadDocumentFileRpc,
   WsProjectsReadFileRpc,
   WsProjectsReadTabularFileRpc,
   WsProjectsReadTabularMediaRpc,
