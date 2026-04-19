@@ -438,6 +438,33 @@ function resolveDesktopRuntimeDependencies(
   return resolveCatalogDependencies(runtimeDependencies, catalog, "apps/desktop");
 }
 
+const patchEffectContextShim = Effect.fn("patchEffectContextShim")(function* (stageAppDir: string) {
+  const path = yield* Path.Path;
+  const fs = yield* FileSystem.FileSystem;
+  const effectDistDir = path.join(stageAppDir, "node_modules/effect/dist");
+  const serviceMapPath = path.join(effectDistDir, "ServiceMap.js");
+  const contextPath = path.join(effectDistDir, "Context.js");
+
+  if (!(yield* fs.exists(serviceMapPath))) {
+    return;
+  }
+  if (yield* fs.exists(contextPath)) {
+    return;
+  }
+
+  // effect@4 beta exports `effect/Context` but some published builds only ship
+  // the renamed `ServiceMap` module. Electron's Node runtime resolves through
+  // the export map and crashes without this compatibility shim.
+  yield* fs.writeFileString(
+    contextPath,
+    [
+      'export * from "./ServiceMap.js";',
+      'export { Service as Tag } from "./ServiceMap.js";',
+      "",
+    ].join("\n"),
+  );
+});
+
 function resolveGitHubPublishConfig():
   | {
       readonly provider: "github";
@@ -691,6 +718,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
       shell: process.platform === "win32",
     })`bun install --production`,
   );
+  yield* patchEffectContextShim(stageAppDir);
 
   const buildEnv: NodeJS.ProcessEnv = {
     ...process.env,
