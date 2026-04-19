@@ -2,6 +2,7 @@
 
 import {
   classifyFilePreview,
+  isDocumentPreviewPath,
   isMarkdownPreviewPath,
   isWorkbookTabularFileKind,
 } from "@t3tools/shared/filePreviews";
@@ -27,6 +28,10 @@ function directoryOfRelativePath(relativePath: string): string {
 
 export function isMarkdownPath(pathValue: string): boolean {
   return isMarkdownPreviewPath(pathValue);
+}
+
+export function isDocumentPath(pathValue: string): boolean {
+  return isDocumentPreviewPath(pathValue);
 }
 
 export function classifyRoomFile(pathValue: string) {

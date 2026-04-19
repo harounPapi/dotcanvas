@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  ProjectReadDocumentFileResult,
   ProjectReadFileResult,
   ProjectReadDelimitedGridFileResult,
   ProjectReadTabularFileResult,
@@ -24,6 +25,7 @@ import {
 import { readNativeApi } from "~/nativeApi";
 import {
   projectQueryKeys,
+  projectReadDocumentFileQueryOptions,
   projectReadFileQueryOptions,
   projectReadTabularFileQueryOptions,
 } from "~/lib/projectReactQuery";
@@ -57,6 +59,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { cn } from "~/lib/utils";
 
 import { RoomMarkdownSurface } from "./RoomMarkdownSurface";
+import { documentPreviewLabel } from "./roomDocumentPreview";
 import { collectTabularWritePatches, type TabularDraftPatchRecord } from "./roomTabularState";
 import {
   classifyRoomFile,
@@ -75,6 +78,12 @@ const LazyRoomWorkbookPresentationSurface = lazy(async () => {
   return { default: module.RoomWorkbookPresentationSurface };
 });
 
+const LazyRoomDocumentSurface = lazy(async () => {
+  const module = await import("./RoomDocumentSurface");
+  return { default: module.RoomDocumentSurface };
+});
+
+type LoadedDocumentFileMap = Record<string, ProjectReadDocumentFileResult>;
 type LoadedMarkdownFileMap = Record<string, ProjectReadFileResult>;
 type LoadedTabularFileMap = Record<string, ProjectReadTabularFileResult>;
 
@@ -131,8 +140,10 @@ function isUnsupportedRoomFileMessage(message: string | undefined): boolean {
 
   return (
     message.includes("File is too large to open in Room") ||
+    message.includes("Document file is too large to open in Room") ||
     message.includes("File is not valid UTF-8 text") ||
     message.includes("File is not a supported text document") ||
+    message.includes("File is not a supported document preview") ||
     message.includes("File is not a supported spreadsheet document") ||
     message.includes("Spreadsheet file is too large to open in Room") ||
     message.includes("Spreadsheet has too many") ||
@@ -140,6 +151,10 @@ function isUnsupportedRoomFileMessage(message: string | undefined): boolean {
     message.includes("Spreadsheet workbook does not contain any worksheets") ||
     message.includes("doesn’t appear to contain tabular data") ||
     message.includes("password-protected or encrypted") ||
+    message.includes("password-protected or corrupted") ||
+    message.includes("Microsoft Word .doc files") ||
+    message.includes("Room couldn’t render this PDF document") ||
+    message.includes("Room couldn’t render this DOCX document") ||
     message.includes("not currently readable in Room")
   );
 }
@@ -158,16 +173,23 @@ function isWorkbookPresentationPreview(
 
 function unsupportedFileDescription(input: {
   message: string | undefined;
-  selectionKind: "markdown" | "tabular" | "unsupported";
+  selectedPath: string | undefined;
+  selectionKind: "markdown" | "tabular" | "document" | "unsupported";
 }) {
   if (!input.message) {
+    if (input.selectedPath?.toLowerCase().endsWith(".doc")) {
+      return "Room supports modern .docx previews here, but legacy .doc files still need to be opened externally or saved as .docx first.";
+    }
+
     switch (input.selectionKind) {
       case "markdown":
         return "Room can edit and preview Markdown files here.";
       case "tabular":
         return "Room can edit delimited table files here, and preview major workbook formats with the best fidelity Room can safely provide.";
+      case "document":
+        return "Room can preview PDF and DOCX documents here right now.";
       default:
-        return "Room can preview Markdown plus a broad set of spreadsheet and delimited table files here right now.";
+        return "Room can preview Markdown, spreadsheets, PDF files, and DOCX documents here right now.";
     }
   }
 
@@ -191,6 +213,18 @@ function unsupportedFileDescription(input: {
   }
   if (input.message.includes("password-protected or encrypted")) {
     return "This workbook is password-protected or encrypted, so Room can’t safely preview it here.";
+  }
+  if (input.message.includes("password-protected or corrupted")) {
+    return "This document is password-protected or corrupted, so Room can’t safely preview it here.";
+  }
+  if (input.message.includes("Microsoft Word .doc files")) {
+    return "Legacy Word .doc files aren’t supported in Room yet. Save the file as .docx or open it externally.";
+  }
+  if (input.message.includes("Room couldn’t render this PDF document")) {
+    return "Room couldn’t render this PDF preview reliably, so it falls back to opening externally.";
+  }
+  if (input.message.includes("Room couldn’t render this DOCX document")) {
+    return "Room couldn’t render this DOCX preview reliably, so it falls back to opening externally.";
   }
   if (input.message.includes("not currently readable in Room")) {
     return "This workbook format can’t be parsed safely in Room right now, so it falls back to opening externally.";
@@ -260,6 +294,7 @@ export function RoomFilePane(props: {
     Record<string, TabularDraftPatchRecord>
   >({});
   const [errorsByPath, setErrorsByPath] = useState<Record<string, string>>({});
+  const [loadedDocumentByPath, setLoadedDocumentByPath] = useState<LoadedDocumentFileMap>({});
   const [loadedMarkdownByPath, setLoadedMarkdownByPath] = useState<LoadedMarkdownFileMap>({});
   const [loadedTabularByPath, setLoadedTabularByPath] = useState<LoadedTabularFileMap>({});
   const [loadingPath, setLoadingPath] = useState<string>();
@@ -268,6 +303,7 @@ export function RoomFilePane(props: {
   const [deletedPaths, setDeletedPaths] = useState<Record<string, true>>({});
   const markdownDraftsByPathRef = useRef(markdownDraftsByPath);
   const tabularDraftsByPathRef = useRef(tabularDraftsByPath);
+  const loadedDocumentByPathRef = useRef(loadedDocumentByPath);
   const loadedMarkdownByPathRef = useRef(loadedMarkdownByPath);
   const loadedTabularByPathRef = useRef(loadedTabularByPath);
   const deletedPathsRef = useRef(deletedPaths);
@@ -279,6 +315,10 @@ export function RoomFilePane(props: {
   useEffect(() => {
     tabularDraftsByPathRef.current = tabularDraftsByPath;
   }, [tabularDraftsByPath]);
+
+  useEffect(() => {
+    loadedDocumentByPathRef.current = loadedDocumentByPath;
+  }, [loadedDocumentByPath]);
 
   useEffect(() => {
     loadedMarkdownByPathRef.current = loadedMarkdownByPath;
@@ -297,6 +337,7 @@ export function RoomFilePane(props: {
     setMarkdownDraftsByPath({});
     setTabularDraftsByPath({});
     setErrorsByPath({});
+    setLoadedDocumentByPath({});
     setLoadedMarkdownByPath({});
     setLoadedTabularByPath({});
     setLoadingPath(undefined);
@@ -313,7 +354,8 @@ export function RoomFilePane(props: {
 
       if (
         !options?.force &&
-        (loadedMarkdownByPathRef.current[relativePath] ||
+        (loadedDocumentByPathRef.current[relativePath] ||
+          loadedMarkdownByPathRef.current[relativePath] ||
           loadedTabularByPathRef.current[relativePath])
       ) {
         return;
@@ -325,6 +367,36 @@ export function RoomFilePane(props: {
       setErrorsByPath((current) => omitKey(current, relativePath));
 
       try {
+        if (selectionKind.kind === "document") {
+          await queryClient.invalidateQueries({
+            queryKey: projectQueryKeys.readDocumentFile(workspaceRoot, relativePath),
+          });
+          const result = await queryClient.fetchQuery(
+            projectReadDocumentFileQueryOptions({
+              cwd: workspaceRoot,
+              relativePath,
+            }),
+          );
+
+          if (generationRef.current !== generation) {
+            return;
+          }
+
+          startTransition(() => {
+            setLoadedDocumentByPath((current) => ({
+              ...current,
+              [relativePath]: result,
+            }));
+            setLoadedMarkdownByPath((current) => omitKey(current, relativePath));
+            setLoadedTabularByPath((current) => omitKey(current, relativePath));
+            setMarkdownDraftsByPath((current) => omitKey(current, relativePath));
+            setTabularDraftsByPath((current) => omitKey(current, relativePath));
+            setConflictPaths((current) => omitKey(current, relativePath));
+            setDeletedPaths((current) => omitKey(current, relativePath));
+          });
+          return;
+        }
+
         if (selectionKind.kind === "markdown") {
           await queryClient.invalidateQueries({
             queryKey: projectQueryKeys.readFile(workspaceRoot, relativePath),
@@ -345,6 +417,7 @@ export function RoomFilePane(props: {
               ...current,
               [relativePath]: result,
             }));
+            setLoadedDocumentByPath((current) => omitKey(current, relativePath));
             setLoadedTabularByPath((current) => omitKey(current, relativePath));
             setMarkdownDraftsByPath((current) => ({
               ...current,
@@ -376,6 +449,7 @@ export function RoomFilePane(props: {
           }
 
           startTransition(() => {
+            setLoadedDocumentByPath((current) => omitKey(current, relativePath));
             setLoadedTabularByPath((current) => ({
               ...current,
               [relativePath]: result,
@@ -418,6 +492,7 @@ export function RoomFilePane(props: {
     () => (selectedPath ? classifyRoomFile(selectedPath) : { kind: "unsupported" as const }),
     [selectedPath],
   );
+  const selectedDocumentFile = selectedPath ? loadedDocumentByPath[selectedPath] : undefined;
   const selectedMarkdownFile = selectedPath ? loadedMarkdownByPath[selectedPath] : undefined;
   const selectedTabularFile = selectedPath ? loadedTabularByPath[selectedPath] : undefined;
   const selectedMarkdownDraft = selectedPath ? markdownDraftsByPath[selectedPath] : undefined;
@@ -427,6 +502,9 @@ export function RoomFilePane(props: {
     : undefined;
   const selectedWorkbookPreview = isWorkbookPresentationPreview(selectedTabularFile)
     ? selectedTabularFile
+    : undefined;
+  const selectedDocumentFormatLabel = selectedDocumentFile
+    ? documentPreviewLabel(selectedDocumentFile.kind)
     : undefined;
   const selectedTabularFormatLabel = useMemo(
     () => tabularPreviewLabel(selectedTabularFile),
@@ -439,14 +517,16 @@ export function RoomFilePane(props: {
     [selectedPath, workspaceRoot],
   );
   const isMarkdownSelection = selectedRoomFile.kind === "markdown";
+  const isDocumentSelection = selectedRoomFile.kind === "document";
   const isTabularSelection = selectedRoomFile.kind === "tabular";
   const isLoadingSelectedFile = selectedPath !== undefined && loadingPath === selectedPath;
   const hasLoadedMarkdown = Boolean(
     isMarkdownSelection && selectedMarkdownFile && selectedMarkdownDraft !== undefined,
   );
+  const hasLoadedDocument = Boolean(isDocumentSelection && selectedDocumentFile);
   const hasLoadedTabular = Boolean(isTabularSelection && selectedTabularFile);
   const isEditableTabularSelection = Boolean(selectedDelimitedGridFile?.capabilities.canEditInRoom);
-  const hasLoadedSelectedFile = hasLoadedMarkdown || hasLoadedTabular;
+  const hasLoadedSelectedFile = hasLoadedDocument || hasLoadedMarkdown || hasLoadedTabular;
   const isDirty = isMarkdownSelection
     ? selectedMarkdownFile !== undefined &&
       selectedMarkdownDraft !== undefined &&
@@ -459,6 +539,7 @@ export function RoomFilePane(props: {
     saveState.status === "error" && saveState.path === selectedPath ? saveState.message : undefined;
   const hasSaveConflict = selectedPath ? conflictPaths[selectedPath] === true : false;
   const wasDeletedOnDisk = selectedPath ? deletedPaths[selectedPath] === true : false;
+  const selectedPreviewLabel = selectedDocumentFormatLabel ?? selectedTabularFormatLabel;
   const shouldShowUnsupportedState =
     selectedPath !== undefined &&
     (selectedRoomFile.kind === "unsupported" ||
@@ -486,6 +567,7 @@ export function RoomFilePane(props: {
     }
 
     const changedPath = event.relativePath;
+    const currentLoadedDocument = loadedDocumentByPathRef.current[changedPath];
     const currentLoadedMarkdown = loadedMarkdownByPathRef.current[changedPath];
     const currentLoadedTabular = loadedTabularByPathRef.current[changedPath];
     const currentMarkdownDraft = markdownDraftsByPathRef.current[changedPath];
@@ -502,6 +584,24 @@ export function RoomFilePane(props: {
     const isSelectedFile = changedPath === selectedPath;
 
     if (isSelectedFile) {
+      if (currentLoadedDocument) {
+        if (!event.exists) {
+          startTransition(() => {
+            setLoadedDocumentByPath((current) => omitKey(current, changedPath));
+            setErrorsByPath((current) => ({
+              ...omitKey(current, changedPath),
+              [changedPath]: `File does not exist: ${changedPath}`,
+            }));
+            setConflictPaths((current) => omitKey(current, changedPath));
+            setDeletedPaths((current) => omitKey(current, changedPath));
+          });
+          return;
+        }
+
+        void loadFile(changedPath, { force: true, preserveDraft: false });
+        return;
+      }
+
       if (!event.exists) {
         startTransition(() => {
           setDeletedPaths((current) => ({
@@ -536,6 +636,7 @@ export function RoomFilePane(props: {
     }
 
     if (
+      !currentLoadedDocument &&
       !currentLoadedMarkdown &&
       !currentLoadedTabular &&
       currentMarkdownDraft === undefined &&
@@ -563,6 +664,7 @@ export function RoomFilePane(props: {
         return;
       }
 
+      setLoadedDocumentByPath((current) => omitKey(current, changedPath));
       setLoadedMarkdownByPath((current) => omitKey(current, changedPath));
       setLoadedTabularByPath((current) => omitKey(current, changedPath));
       setMarkdownDraftsByPath((current) => omitKey(current, changedPath));
@@ -590,6 +692,20 @@ export function RoomFilePane(props: {
       setSaveState((current) =>
         current.status === "error" && current.path === selectedPath ? { status: "idle" } : current,
       );
+    },
+    [selectedPath],
+  );
+
+  const handleDocumentPreviewError = useCallback(
+    (message: string) => {
+      if (!selectedPath) {
+        return;
+      }
+
+      setErrorsByPath((current) => ({
+        ...current,
+        [selectedPath]: message,
+      }));
     },
     [selectedPath],
   );
@@ -735,7 +851,7 @@ export function RoomFilePane(props: {
   });
 
   const saveStatusLabel = useMemo(() => {
-    if (selectedWorkbookPreview) {
+    if (selectedDocumentFile || selectedWorkbookPreview) {
       return undefined;
     }
     if (isSaving) {
@@ -761,6 +877,7 @@ export function RoomFilePane(props: {
     isDirty,
     isSaving,
     saveError,
+    selectedDocumentFile,
     selectedWorkbookPreview,
     wasDeletedOnDisk,
   ]);
@@ -804,12 +921,13 @@ export function RoomFilePane(props: {
               })}
             </BreadcrumbList>
           </Breadcrumb>
-          {selectedRoomFile.kind !== "unsupported" && selectedTabularFormatLabel ? (
+          {selectedRoomFile.kind !== "unsupported" && selectedPreviewLabel ? (
             <div className="flex shrink-0 items-center gap-2">
               <span className="max-w-56 truncate text-[11px] text-muted-foreground">
-                {selectedTabularFormatLabel}
+                {selectedPreviewLabel}
               </span>
-              {selectedRoomFile.kind !== "tabular" || !selectedWorkbookPreview ? (
+              {selectedRoomFile.kind === "markdown" ||
+              (selectedRoomFile.kind === "tabular" && !selectedWorkbookPreview) ? (
                 <>
                   {saveStatusLabel ? (
                     <span
@@ -838,8 +956,7 @@ export function RoomFilePane(props: {
                 </>
               ) : null}
             </div>
-          ) : selectedRoomFile.kind !== "unsupported" &&
-            !(selectedRoomFile.kind === "tabular" && selectedWorkbookPreview) ? (
+          ) : selectedRoomFile.kind === "markdown" ? (
             <div className="flex shrink-0 items-center gap-2">
               {saveStatusLabel ? (
                 <span
@@ -966,6 +1083,7 @@ export function RoomFilePane(props: {
               <EmptyDescription>
                 {unsupportedFileDescription({
                   message: selectedError ?? selectedWorkbookPreview?.unsupportedVisualReason,
+                  selectedPath,
                   selectionKind: selectedRoomFile.kind,
                 })}
               </EmptyDescription>
@@ -1053,6 +1171,29 @@ export function RoomFilePane(props: {
                 resolvedTheme={resolvedTheme}
                 snapshot={selectedWorkbookPreview}
                 workspaceRoot={workspaceRoot ?? ""}
+              />
+            </Suspense>
+          </div>
+        ) : null}
+
+        {selectedPath &&
+        hasLoadedDocument &&
+        selectedDocumentFile &&
+        !selectedError &&
+        !shouldShowUnsupportedState ? (
+          <div className="min-h-0 flex-1">
+            <Suspense
+              fallback={
+                <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <Loader2Icon className="size-4 animate-spin" />
+                  Preparing document preview...
+                </div>
+              }
+            >
+              <LazyRoomDocumentSurface
+                key={`${selectedPath}:${selectedDocumentFile.mtimeMs}`}
+                onPreviewError={handleDocumentPreviewError}
+                snapshot={selectedDocumentFile}
               />
             </Suspense>
           </div>

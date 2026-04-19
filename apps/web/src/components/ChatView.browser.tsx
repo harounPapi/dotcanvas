@@ -57,6 +57,12 @@ const BASE_TIME_MS = Date.parse(NOW_ISO);
 const ATTACHMENT_SVG = "<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'></svg>";
 const ONE_PIXEL_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jx7sAAAAASUVORK5CYII=";
+const ROOM_PDF_BASE64 =
+  "JVBERi0xLjcKJYGBgYEKCjYgMCBvYmoKPDwKL0ZpbHRlciAvRmxhdGVEZWNvZGUKL0xlbmd0aCAxMDYKPj4Kc3RyZWFtCnicK+RyCuEyUADBonQufY/UnLLUkszkRF1zA0sLEwsDcwtLBUMLhZA0LiMThRAfLkOwUkMFEyABxCG5XDamRmZuQOhiZGBqYGJiYgaizY3MTM3NzCyBpLmdQkgWV4gWl2sIVyAXAKbEGIkKZW5kc3RyZWFtCmVuZG9iagoKNyAwIG9iago8PAovRmlsdGVyIC9GbGF0ZURlY29kZQovVHlwZSAvT2JqU3RtCi9OIDUKL0ZpcnN0IDI2Ci9MZW5ndGggMzYwCj4+CnN0cmVhbQp4nNVSTUvDQBC976+Yox5kP5JmEymFtkkUpCitoCge0mQpkbIryUbqv3cmSS09iGcJj92ZebP7NvMkCFAQhhCAjiGESaBgAlpKmE4Zf/z6MMAfip1pGb+rqxZekSNgDW+ML11nPUg2m7ETd1n4Yu92bGgCSeQj46FxVVeaBqZ5ludCaCFEFCIiIVSK6xKRIBTGWFMx7hE6HIE5HQgRzLGWD4j00EP1njsZ+zNckRsRJx24YTzEP/fSXdlwhvpLTzJjfOWqtPAGLtJrJVQkQplIqRAvl/g7GlN4938f1+uvnf31hWdzpvHSkBtDHuinzNemdV1T4tiJlzus0ObW7D+Nr8viSoskRp06TtBjozH48/323ZQ9lcLs4G82njQMCcqtTFUXC3dA9wn88OWAqsmDc2udJ1f2frQe1VAUjR49k0yCGN90W9+HlJSML4rW9FJPOlGELV1V2x3wp9rObVsfE3TiNxhwxdgKZW5kc3RyZWFtCmVuZG9iagoKOCAwIG9iago8PAovU2l6ZSA5Ci9Sb290IDIgMCBSCi9JbmZvIDMgMCBSCi9GaWx0ZXIgL0ZsYXRlRGVjb2RlCi9UeXBlIC9YUmVmCi9MZW5ndGggNDAKL1cgWyAxIDIgMiBdCi9JbmRleCBbIDAgOSBdCj4+CnN0cmVhbQp4nBXEsREAIAwDsbfDHS2rMxODJViFgG6zISk5VVrigHg/XxhhbQOfCmVuZHN0cmVhbQplbmRvYmoKCnN0YXJ0eHJlZgo2NTcKJSVFT0Y=";
+const UPDATED_ROOM_PDF_BASE64 =
+  "JVBERi0xLjcKJYGBgYEKCjYgMCBvYmoKPDwKL0ZpbHRlciAvRmxhdGVEZWNvZGUKL0xlbmd0aCAxMDkKPj4Kc3RyZWFtCnicHYoxCkJBDET7OUVqQcwuk2QXxEIQLGyEXEDkK4oWinh+98tj3jTvhW1CZeZ9xWo/Pb7T53Y+LUN7Y9NoXUqTvKBS8oDyT4twaCyfWJuFOr0E3ZxVTUn6/FHdwr0Px0byjlxglzjiBzVXGZIKZW5kc3RyZWFtCmVuZG9iagoKNyAwIG9iago8PAovRmlsdGVyIC9GbGF0ZURlY29kZQovVHlwZSAvT2JqU3RtCi9OIDUKL0ZpcnN0IDI2Ci9MZW5ndGggMzYwCj4+CnN0cmVhbQp4nNVSTUvDQBC976+Yox5kP5JmEymFtkkUpCitoCge0mQpkbIryUbqv3cmSS09iGcJj92ZebP7NvMkCFAQhhCAjiGESaBgAlpKmE4Zf/z6MMAfip1pGb+rqxZekSNgDW+ML11nPUg2m7ETd1n4Yu92bGgCSeQj46FxVVeaBqZ5ludCaCFEFCIiIVSK6xKRIBTGWFMx7hE6HIE5HQgRzLGWD4j00EP1njsZ+zNckRsRJx24YTzEP/fSXdlwhvpLTzJjfOWqtPAGLtJrJVQkQplIqRAvl/g7GlN4938f1+uvnf31hWdzpvHSkBtDHuinzNemdV1T4tiJlzus0ObW7D+Nr8viSoskRp06TtBjozH48/323ZQ9lcLs4G82njQMCcqtTFUXC3dA9wn88OWAqsmDc2udJ1f2frQe1VAUjR49k0yCGN90W9+HlJSML4rW9FJPOlGELV1V2x3wp9rObVsfE3TiNxhwxdgKZW5kc3RyZWFtCmVuZG9iagoKOCAwIG9iago8PAovU2l6ZSA5Ci9Sb290IDIgMCBSCi9JbmZvIDMgMCBSCi9GaWx0ZXIgL0ZsYXRlRGVjb2RlCi9UeXBlIC9YUmVmCi9MZW5ndGggNDAKL1cgWyAxIDIgMiBdCi9JbmRleCBbIDAgOSBdCj4+CnN0cmVhbQp4nBXEsREAIAwDsbfDHS3DMxNrJViFgG6zISk5VVrigHg/XxhhjgOlCmVuZHN0cmVhbQplbmRvYmoKCnN0YXJ0eHJlZgo2NjAKJSVFT0Y=";
+const ROOM_DOCX_BASE64 =
+  "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";
 
 interface TestFixture {
   snapshot: OrchestrationReadModel;
@@ -3499,6 +3505,258 @@ describe("ChatView timeline estimator parity (full app)", () => {
         () => {
           expect(document.body.textContent).toContain("This document isn’t supported here yet");
           expect(document.body.textContent).toContain("Excel table themes");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("renders PDF previews with toolbar controls and no save button", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-pdf-preview" as MessageId,
+        targetText: "room pdf preview",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "brief.pdf", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (
+          body._tag === WS_METHODS.projectsReadDocumentFile &&
+          body.relativePath === "brief.pdf"
+        ) {
+          return {
+            relativePath: "brief.pdf",
+            kind: "pdf" as const,
+            sizeBytes: 512,
+            mtimeMs: 1,
+            mimeType: "application/pdf",
+            capabilities: { canEditInRoom: false as const },
+            contentBase64: ROOM_PDF_BASE64,
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const pdfTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("brief.pdf"),
+          ) ?? null,
+        "Unable to find brief.pdf in the Room tree.",
+      );
+      pdfTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("Room PDF Preview");
+          expect(document.body.textContent).toContain("Page 1 of 1");
+          expect(document.body.textContent).toContain("Fit width");
+          expect(document.querySelector("[data-room-pdf-preview]")).toBeTruthy();
+          expect(
+            document.querySelector<HTMLButtonElement>('button[aria-label="Save room file"]'),
+          ).toBeNull();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("renders paged DOCX previews with no save button", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-docx-preview" as MessageId,
+        targetText: "room docx preview",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "brief.docx", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (
+          body._tag === WS_METHODS.projectsReadDocumentFile &&
+          body.relativePath === "brief.docx"
+        ) {
+          return {
+            relativePath: "brief.docx",
+            kind: "docx" as const,
+            sizeBytes: 1024,
+            mtimeMs: 1,
+            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            capabilities: { canEditInRoom: false as const },
+            contentBase64: ROOM_DOCX_BASE64,
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const docxTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("brief.docx"),
+          ) ?? null,
+        "Unable to find brief.docx in the Room tree.",
+      );
+      docxTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("Room DOCX Preview");
+          expect(document.body.textContent).toContain("Page two paragraph");
+          expect(document.querySelector("[data-room-docx-preview]")).toBeTruthy();
+          expect(document.querySelectorAll("section.room-docx").length).toBeGreaterThanOrEqual(2);
+          expect(
+            document.querySelector<HTMLButtonElement>('button[aria-label="Save room file"]'),
+          ).toBeNull();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("auto-refreshes a clean selected PDF preview after an external workspace change", async () => {
+    let currentPdfBase64 = ROOM_PDF_BASE64;
+    let currentMtimeMs = 1;
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-pdf-refresh" as MessageId,
+        targetText: "room pdf refresh",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "brief.pdf", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (
+          body._tag === WS_METHODS.projectsReadDocumentFile &&
+          body.relativePath === "brief.pdf"
+        ) {
+          return {
+            relativePath: "brief.pdf",
+            kind: "pdf" as const,
+            sizeBytes: 512,
+            mtimeMs: currentMtimeMs,
+            mimeType: "application/pdf",
+            capabilities: { canEditInRoom: false as const },
+            contentBase64: currentPdfBase64,
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const pdfTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("brief.pdf"),
+          ) ?? null,
+        "Unable to find brief.pdf in the Room tree.",
+      );
+      pdfTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("Room PDF Preview");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      currentPdfBase64 = UPDATED_ROOM_PDF_BASE64;
+      currentMtimeMs = 2;
+      rpcHarness.emitStreamValue(WS_METHODS.subscribeProjectWorkspaceChanges, {
+        _tag: "pathChanged",
+        relativePath: "brief.pdf",
+        exists: true,
+        entryKind: "file",
+      });
+
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("Updated PDF Preview");
+          expect(document.body.textContent).not.toContain("File changed on disk");
+          expect(
+            document.querySelector<HTMLButtonElement>('button[aria-label="Save room file"]'),
+          ).toBeNull();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("falls back to the unsupported document state for corrupt document previews", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-room-file-pane-document-unsupported" as MessageId,
+        targetText: "room document unsupported",
+      }),
+      initialEntry: `/${THREAD_ID}?view=room`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.projectsListDirectory) {
+          return {
+            entries: [{ path: "locked.docx", kind: "file" as const }],
+            truncated: false,
+          };
+        }
+        if (
+          body._tag === WS_METHODS.projectsReadDocumentFile &&
+          body.relativePath === "locked.docx"
+        ) {
+          return {
+            relativePath: "locked.docx",
+            kind: "docx" as const,
+            sizeBytes: 16,
+            mtimeMs: 1,
+            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            capabilities: { canEditInRoom: false as const },
+            contentBase64: "bm90LWEtdmFsaWQtZG9jeA==",
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const docxTreeItem = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]')).find((element) =>
+            element.textContent?.includes("locked.docx"),
+          ) ?? null,
+        "Unable to find locked.docx in the Room tree.",
+      );
+      docxTreeItem.click();
+
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("This document isn’t supported here yet");
+          expect(document.body.textContent).toContain("password-protected or corrupted");
         },
         { timeout: 8_000, interval: 16 },
       );
