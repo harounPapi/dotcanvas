@@ -47,14 +47,23 @@ function directoryKeyOf(directoryPath?: string): string {
   return directoryPath ?? ROOT_DIRECTORY_KEY;
 }
 
-function parentDirectoryPathOf(pathValue: string): string | undefined {
+function ancestorDirectoryPathsOf(pathValue: string): ReadonlyArray<string | undefined> {
   const normalizedPath = pathValue.replaceAll("\\", "/").replace(/\/+$/, "");
-  const separatorIndex = normalizedPath.lastIndexOf("/");
-  if (separatorIndex === -1) {
-    return undefined;
+  if (normalizedPath.length === 0) {
+    return [undefined];
   }
 
-  return normalizedPath.slice(0, separatorIndex);
+  const ancestors: Array<string | undefined> = [undefined];
+  const segments = normalizedPath.split("/");
+  if (segments.length <= 1) {
+    return ancestors;
+  }
+
+  for (let index = 0; index < segments.length - 1; index += 1) {
+    ancestors.push(segments.slice(0, index + 1).join("/"));
+  }
+
+  return ancestors;
 }
 
 function omitDirectorySubtree<T>(
@@ -231,10 +240,11 @@ export function RoomWorkspaceTree(props: {
       return;
     }
 
-    const parentDirectoryPath = parentDirectoryPathOf(event.relativePath);
-    const parentKey = directoryKeyOf(parentDirectoryPath);
-    if (directoryStatesRef.current[parentKey]) {
-      void loadDirectory(parentDirectoryPath, { force: true });
+    for (const ancestorDirectoryPath of ancestorDirectoryPathsOf(event.relativePath)) {
+      const ancestorKey = directoryKeyOf(ancestorDirectoryPath);
+      if (directoryStatesRef.current[ancestorKey]) {
+        void loadDirectory(ancestorDirectoryPath, { force: true });
+      }
     }
 
     const directoryKey = directoryKeyOf(event.relativePath);

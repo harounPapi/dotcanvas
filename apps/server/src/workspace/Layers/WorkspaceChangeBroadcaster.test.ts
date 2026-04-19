@@ -33,8 +33,8 @@ function withWorkspaceChangeBroadcaster<A, E, R>(
   }).pipe(Effect.provide(NodeServices.layer));
 }
 
-function isDocsWatchPath(watchPath: string): boolean {
-  return watchPath.replaceAll("\\", "/").endsWith("/docs");
+function isWorkspaceWatchPath(workspaceRoot: string, watchPath: string): boolean {
+  return watchPath.replaceAll("\\", "/") === workspaceRoot.replaceAll("\\", "/");
 }
 
 const writeTextFile = Effect.fn("WorkspaceChangeBroadcaster.test.writeTextFile")(function* (
@@ -52,26 +52,24 @@ const writeTextFile = Effect.fn("WorkspaceChangeBroadcaster.test.writeTextFile")
 });
 
 describe("WorkspaceChangeBroadcasterLive", () => {
-  it.effect("emits pathChanged for external file edits in a watched directory", () =>
+  it.effect("emits pathChanged for nested file edits anywhere under the workspace root", () =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
       const cwd = yield* fileSystem.makeTempDirectoryScoped({
         prefix: "t3-workspace-change-broadcaster-edit-",
       });
 
-      yield* writeTextFile(cwd, "docs/note.md", "# Updated\n");
-
+      yield* writeTextFile(cwd, "docs/nested/note.md", "# Updated\n");
       const events = yield* withWorkspaceChangeBroadcaster(
         (watchPath) =>
-          isDocsWatchPath(watchPath)
-            ? Stream.make({ _tag: "Update", path: "note.md" })
+          isWorkspaceWatchPath(cwd, watchPath)
+            ? Stream.make({ _tag: "Update", path: "docs/nested/note.md" })
             : Stream.empty,
         Effect.gen(function* () {
           const broadcaster = yield* WorkspaceChangeBroadcaster;
           return yield* broadcaster
             .streamChanges({
               cwd,
-              directoryPaths: ["docs"],
             })
             .pipe(Stream.take(1), Stream.runCollect);
         }),
@@ -80,7 +78,7 @@ describe("WorkspaceChangeBroadcasterLive", () => {
       expect(Array.from(events)).toEqual([
         {
           _tag: "pathChanged",
-          relativePath: "docs/note.md",
+          relativePath: "docs/nested/note.md",
           exists: true,
           entryKind: "file",
         },
@@ -88,7 +86,7 @@ describe("WorkspaceChangeBroadcasterLive", () => {
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 
-  it.effect("emits create and delete events with the correct exists flag", () =>
+  it.effect("emits nested create and delete events with the correct exists flag", () =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
@@ -96,25 +94,24 @@ describe("WorkspaceChangeBroadcasterLive", () => {
         prefix: "t3-workspace-change-broadcaster-create-delete-",
       });
 
-      yield* writeTextFile(cwd, "docs/created.md", "# Created\n");
+      yield* writeTextFile(cwd, "docs/nested/created.md", "# Created\n");
       yield* fileSystem
-        .makeDirectory(path.join(cwd, "docs"), { recursive: true })
+        .makeDirectory(path.join(cwd, "docs", "nested"), { recursive: true })
         .pipe(Effect.orDie);
       yield* fileSystem
-        .remove(path.join(cwd, "docs", "deleted.md"), { force: true })
+        .remove(path.join(cwd, "docs", "nested", "deleted.md"), { force: true })
         .pipe(Effect.orDie);
 
       const createdEvents = yield* withWorkspaceChangeBroadcaster(
         (watchPath) =>
-          isDocsWatchPath(watchPath)
-            ? Stream.make({ _tag: "Create", path: "created.md" })
+          isWorkspaceWatchPath(cwd, watchPath)
+            ? Stream.make({ _tag: "Create", path: "docs/nested/created.md" })
             : Stream.empty,
         Effect.gen(function* () {
           const broadcaster = yield* WorkspaceChangeBroadcaster;
           return yield* broadcaster
             .streamChanges({
               cwd,
-              directoryPaths: ["docs"],
             })
             .pipe(Stream.take(1), Stream.runCollect);
         }),
@@ -122,15 +119,14 @@ describe("WorkspaceChangeBroadcasterLive", () => {
 
       const deletedEvents = yield* withWorkspaceChangeBroadcaster(
         (watchPath) =>
-          isDocsWatchPath(watchPath)
-            ? Stream.make({ _tag: "Remove", path: "deleted.md" })
+          isWorkspaceWatchPath(cwd, watchPath)
+            ? Stream.make({ _tag: "Remove", path: "docs/nested/deleted.md" })
             : Stream.empty,
         Effect.gen(function* () {
           const broadcaster = yield* WorkspaceChangeBroadcaster;
           return yield* broadcaster
             .streamChanges({
               cwd,
-              directoryPaths: ["docs"],
             })
             .pipe(Stream.take(1), Stream.runCollect);
         }),
@@ -139,7 +135,7 @@ describe("WorkspaceChangeBroadcasterLive", () => {
       expect(Array.from(createdEvents)).toEqual([
         {
           _tag: "pathChanged",
-          relativePath: "docs/created.md",
+          relativePath: "docs/nested/created.md",
           exists: true,
           entryKind: "file",
         },
@@ -147,14 +143,49 @@ describe("WorkspaceChangeBroadcasterLive", () => {
       expect(Array.from(deletedEvents)).toEqual([
         {
           _tag: "pathChanged",
-          relativePath: "docs/deleted.md",
+          relativePath: "docs/nested/deleted.md",
           exists: false,
         },
       ]);
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 
-  it.effect("emits directoryInvalidated for ambiguous directory watch bursts", () =>
+  it.effect("emits pathChanged for top-level file creates", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const cwd = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "t3-workspace-change-broadcaster-top-level-",
+      });
+
+      yield* writeTextFile(cwd, "README.md", "# Created\n");
+
+      const events = yield* withWorkspaceChangeBroadcaster(
+        (watchPath) =>
+          isWorkspaceWatchPath(cwd, watchPath)
+            ? Stream.make({ _tag: "Create", path: "README.md" })
+            : Stream.empty,
+        Effect.gen(function* () {
+          const broadcaster = yield* WorkspaceChangeBroadcaster;
+          return yield* broadcaster
+            .streamChanges({
+              cwd,
+            })
+            .pipe(Stream.take(1), Stream.runCollect);
+        }),
+      );
+
+      expect(Array.from(events)).toEqual([
+        {
+          _tag: "pathChanged",
+          relativePath: "README.md",
+          exists: true,
+          entryKind: "file",
+        },
+      ]);
+    }).pipe(Effect.provide(NodeServices.layer)),
+  );
+
+  it.effect("emits directoryInvalidated for ambiguous root watch bursts", () =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
@@ -168,13 +199,14 @@ describe("WorkspaceChangeBroadcasterLive", () => {
 
       const events = yield* withWorkspaceChangeBroadcaster(
         (watchPath) =>
-          isDocsWatchPath(watchPath) ? Stream.make({ _tag: "Update", path: "" }) : Stream.empty,
+          isWorkspaceWatchPath(cwd, watchPath)
+            ? Stream.make({ _tag: "Update", path: "" })
+            : Stream.empty,
         Effect.gen(function* () {
           const broadcaster = yield* WorkspaceChangeBroadcaster;
           return yield* broadcaster
             .streamChanges({
               cwd,
-              directoryPaths: ["docs"],
             })
             .pipe(Stream.take(1), Stream.runCollect);
         }),
@@ -183,9 +215,41 @@ describe("WorkspaceChangeBroadcasterLive", () => {
       expect(Array.from(events)).toEqual([
         {
           _tag: "directoryInvalidated",
-          directoryPath: "docs",
         },
       ]);
+    }).pipe(Effect.provide(NodeServices.layer)),
+  );
+
+  it.effect("tears down the recursive watcher when the subscription scope closes", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const cwd = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "t3-workspace-change-broadcaster-teardown-",
+      });
+      let watcherClosed = false;
+
+      yield* withWorkspaceChangeBroadcaster(
+        (watchPath) =>
+          isWorkspaceWatchPath(cwd, watchPath)
+            ? Stream.make({ _tag: "Update", path: "README.md" }).pipe(
+                Stream.ensuring(
+                  Effect.sync(() => {
+                    watcherClosed = true;
+                  }),
+                ),
+              )
+            : Stream.empty,
+        Effect.gen(function* () {
+          const broadcaster = yield* WorkspaceChangeBroadcaster;
+          yield* broadcaster
+            .streamChanges({
+              cwd,
+            })
+            .pipe(Stream.take(1), Stream.runCollect);
+        }),
+      );
+
+      expect(watcherClosed).toBe(true);
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 });

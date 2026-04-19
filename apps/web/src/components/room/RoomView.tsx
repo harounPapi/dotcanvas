@@ -49,7 +49,7 @@ export function RoomView(props: {
     new Set<(event: ProjectWorkspaceChangeEvent) => void>(),
   );
   const [selectedPath, setSelectedPath] = useState<string>();
-  const [expandedDirectoryPaths, setExpandedDirectoryPaths] = useState<ReadonlyArray<string>>([]);
+  const [, setExpandedDirectoryPaths] = useState<ReadonlyArray<string>>([]);
   const [sidebarWidth, setSidebarWidth] = useState(ROOM_FOLDER_SIDEBAR_DEFAULT_WIDTH_PX);
   const sidebarWidthRef = useRef(sidebarWidth);
 
@@ -198,15 +198,9 @@ export function RoomView(props: {
       return;
     }
 
-    const directoryPaths = Array.from(
-      new Set(expandedDirectoryPaths.filter((directoryPath) => directoryPath.length > 0)),
-    ).toSorted((left, right) => left.localeCompare(right));
-
     return api.projects.onWorkspaceChange(
       {
         cwd: workspaceRoot,
-        ...(directoryPaths.length > 0 ? { directoryPaths } : {}),
-        ...(selectedPath ? { selectedFilePath: selectedPath } : {}),
       },
       (event) => {
         for (const listener of workspaceChangeListenersRef.current) {
@@ -214,7 +208,7 @@ export function RoomView(props: {
         }
       },
     );
-  }, [expandedDirectoryPaths, selectedPath, visible, workspaceRoot]);
+  }, [visible, workspaceRoot]);
 
   return (
     <div
