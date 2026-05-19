@@ -1,9 +1,20 @@
-const REPO = "pingdotgg/t3code";
+const REPO = "harounPapi/dotcanvas";
+
+export const CURRENT_RELEASE_TAG = "v0.0.15";
 
 export const RELEASES_URL = `https://github.com/${REPO}/releases`;
+export const CURRENT_RELEASE_URL = `${RELEASES_URL}/tag/${CURRENT_RELEASE_TAG}`;
 
 const API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
-const CACHE_KEY = "t3code-latest-release";
+const CACHE_KEY = "dotcanvas-latest-release";
+
+export const RELEASE_DOWNLOADS = {
+  macArm64Dmg: `${RELEASES_URL}/download/${CURRENT_RELEASE_TAG}/T3-Code-0.0.15-arm64.dmg`,
+  macArm64Zip: `${RELEASES_URL}/download/${CURRENT_RELEASE_TAG}/T3-Code-0.0.15-arm64.zip`,
+  macX64Dmg: `${RELEASES_URL}/download/${CURRENT_RELEASE_TAG}/T3-Code-0.0.15-x64.dmg`,
+  macX64Zip: `${RELEASES_URL}/download/${CURRENT_RELEASE_TAG}/T3-Code-0.0.15-x64.zip`,
+  winX64Exe: `${RELEASES_URL}/download/${CURRENT_RELEASE_TAG}/T3-Code-0.0.15-x64.exe`,
+} as const;
 
 export interface ReleaseAsset {
   name: string;
