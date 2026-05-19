@@ -184,12 +184,6 @@ interface StagePackageJson {
   };
 }
 
-const ElectronBuilderBunTraversalDependencies = {
-  // electron-builder's Bun node_modules collector requires this legacy
-  // transitive dependency to be present when traversing unzipper -> fstream.
-  mkdirp: "^3.0.1",
-} as const;
-
 const AzureTrustedSigningOptionsConfig = Config.all({
   publisherName: Config.string("AZURE_TRUSTED_SIGNING_PUBLISHER_NAME"),
   endpoint: Config.string("AZURE_TRUSTED_SIGNING_ENDPOINT"),
@@ -706,7 +700,6 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     dependencies: {
       ...resolvedServerDependencies,
       ...resolvedDesktopRuntimeDependencies,
-      ...ElectronBuilderBunTraversalDependencies,
     },
     devDependencies: {
       electron: electronVersion,
@@ -721,9 +714,9 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     ChildProcess.make({
       cwd: stageAppDir,
       ...commandOutputOptions(options.verbose),
-      // Windows needs shell mode to resolve .cmd shims (e.g. bun.cmd).
+      // Windows needs shell mode to resolve .cmd shims (e.g. npm.cmd).
       shell: process.platform === "win32",
-    })`bun install --production`,
+    })`npm install --omit=dev --no-audit --no-fund --legacy-peer-deps`,
   );
   yield* patchEffectContextShim(stageAppDir);
 
@@ -764,7 +757,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
       ...commandOutputOptions(options.verbose),
       // Windows needs shell mode to resolve .cmd shims.
       shell: process.platform === "win32",
-    })`bunx electron-builder ${platformConfig.cliFlag} --${options.arch} --publish never`,
+    })`npx --yes electron-builder ${platformConfig.cliFlag} --${options.arch} --publish never`,
   );
 
   const stageDistDir = path.join(stageAppDir, "dist");
