@@ -184,6 +184,12 @@ interface StagePackageJson {
   };
 }
 
+const ElectronBuilderBunTraversalDependencies = {
+  // electron-builder's Bun node_modules collector requires this legacy
+  // transitive dependency to be present when traversing unzipper -> fstream.
+  mkdirp: "^3.0.1",
+} as const;
+
 const AzureTrustedSigningOptionsConfig = Config.all({
   publisherName: Config.string("AZURE_TRUSTED_SIGNING_PUBLISHER_NAME"),
   endpoint: Config.string("AZURE_TRUSTED_SIGNING_ENDPOINT"),
@@ -700,6 +706,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     dependencies: {
       ...resolvedServerDependencies,
       ...resolvedDesktopRuntimeDependencies,
+      ...ElectronBuilderBunTraversalDependencies,
     },
     devDependencies: {
       electron: electronVersion,
