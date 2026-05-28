@@ -46,7 +46,7 @@ export function listActiveThreadsByProjectId(
 }
 
 export function isProjectBootstrapping(project: OrchestrationProject): boolean {
-  return project.kind === "dotcanvas" && project.bootstrapState === "bootstrapping";
+  return project.kind === "assist" && project.bootstrapState === "bootstrapping";
 }
 
 export function resolveBootstrapThreadId(

@@ -127,7 +127,7 @@ export interface CodexAppServerSendTurnInput {
   readonly model?: string;
   readonly serviceTier?: string | null;
   readonly effort?: string;
-  // DotCanvas thread modes are app-level concepts. Translate them to a
+  // .assist thread modes are app-level concepts. Translate them to a
   // supported Codex collaboration preset at the app-server boundary.
   readonly interactionMode?: ThreadInteractionMode;
   readonly developerInstructions?: string;

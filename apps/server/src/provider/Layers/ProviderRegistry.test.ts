@@ -395,7 +395,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
           assert.strictEqual(status.auth.status, "unknown");
           assert.strictEqual(
             status.message,
-            "Codex CLI v0.36.0 is too old for DotCanvas. Upgrade to v0.37.0 or newer and restart DotCanvas.",
+            "Codex CLI v0.36.0 is too old for .assist. Upgrade to v0.37.0 or newer and restart .assist.",
           );
         }).pipe(
           Effect.provide(
@@ -597,7 +597,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
           assert.strictEqual(status.enabled, false);
           assert.strictEqual(status.status, "disabled");
           assert.strictEqual(status.installed, false);
-          assert.strictEqual(status.message, "Codex is disabled in DotCanvas settings.");
+          assert.strictEqual(status.message, "Codex is disabled in .assist settings.");
         }),
       );
     });

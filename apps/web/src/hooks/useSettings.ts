@@ -34,8 +34,8 @@ import { DeepMutable } from "effect/Types";
 import { deepMerge } from "@t3tools/shared/Struct";
 import { applySettingsUpdated, getServerConfig, useServerSettings } from "~/rpc/serverState";
 
-const CLIENT_SETTINGS_STORAGE_KEY = "t3code:client-settings:v1";
-const OLD_SETTINGS_KEY = "t3code:app-settings:v1";
+const CLIENT_SETTINGS_STORAGE_KEY = "assist:client-settings:v1";
+const OLD_SETTINGS_KEYS = ["assist:app-settings:v1", "t3code:app-settings:v1"] as const;
 
 // ── Key sets for routing patches ─────────────────────────────────────
 
@@ -229,11 +229,14 @@ export function buildLegacyClientSettingsMigrationPatch(
 export function migrateLocalSettingsToServer(): void {
   if (typeof window === "undefined") return;
 
-  const raw = localStorage.getItem(OLD_SETTINGS_KEY);
-  if (!raw) return;
+  const oldSettings = OLD_SETTINGS_KEYS.map((key) => ({
+    key,
+    raw: localStorage.getItem(key),
+  })).find((entry) => entry.raw);
+  if (!oldSettings?.raw) return;
 
   try {
-    const old = JSON.parse(raw);
+    const old = JSON.parse(oldSettings.raw);
     if (!Predicate.isObject(old)) return;
 
     // Migrate server-relevant keys via RPC
@@ -257,6 +260,8 @@ export function migrateLocalSettingsToServer(): void {
     console.error("[MIGRATION] Error migrating local settings:", error);
   } finally {
     // Remove the legacy key regardless to keep migration one-shot behavior.
-    localStorage.removeItem(OLD_SETTINGS_KEY);
+    for (const key of OLD_SETTINGS_KEYS) {
+      localStorage.removeItem(key);
+    }
   }
 }

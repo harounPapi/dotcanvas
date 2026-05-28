@@ -18,7 +18,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
     otlpTracesUrl: undefined,
     otlpMetricsUrl: undefined,
     otlpExportIntervalMs: 10_000,
-    otlpServiceName: "t3-server",
+    otlpServiceName: "assist-server",
   } as const;
 
   const openBootstrapFd = Effect.fn(function* (payload: Record<string, unknown>) {
@@ -55,16 +55,16 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
             ConfigProvider.layer(
               ConfigProvider.fromEnv({
                 env: {
-                  T3CODE_LOG_LEVEL: "Warn",
-                  T3CODE_MODE: "desktop",
-                  T3CODE_PORT: "4001",
-                  T3CODE_HOST: "0.0.0.0",
-                  T3CODE_HOME: baseDir,
+                  ASSIST_LOG_LEVEL: "Warn",
+                  ASSIST_MODE: "desktop",
+                  ASSIST_PORT: "4001",
+                  ASSIST_HOST: "0.0.0.0",
+                  ASSIST_HOME: baseDir,
                   VITE_DEV_SERVER_URL: "http://127.0.0.1:5173",
-                  T3CODE_NO_BROWSER: "true",
-                  T3CODE_AUTH_TOKEN: "env-token",
-                  T3CODE_AUTO_BOOTSTRAP_PROJECT_FROM_CWD: "false",
-                  T3CODE_LOG_WS_EVENTS: "true",
+                  ASSIST_NO_BROWSER: "true",
+                  ASSIST_AUTH_TOKEN: "env-token",
+                  ASSIST_AUTO_BOOTSTRAP_PROJECT_FROM_CWD: "false",
+                  ASSIST_LOG_WS_EVENTS: "true",
                 },
               }),
             ),
@@ -118,16 +118,16 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
             ConfigProvider.layer(
               ConfigProvider.fromEnv({
                 env: {
-                  T3CODE_LOG_LEVEL: "Warn",
-                  T3CODE_MODE: "desktop",
-                  T3CODE_PORT: "4001",
-                  T3CODE_HOST: "0.0.0.0",
-                  T3CODE_HOME: join(os.tmpdir(), "ignored-base"),
+                  ASSIST_LOG_LEVEL: "Warn",
+                  ASSIST_MODE: "desktop",
+                  ASSIST_PORT: "4001",
+                  ASSIST_HOST: "0.0.0.0",
+                  ASSIST_HOME: join(os.tmpdir(), "ignored-base"),
                   VITE_DEV_SERVER_URL: "http://127.0.0.1:5173",
-                  T3CODE_NO_BROWSER: "false",
-                  T3CODE_AUTH_TOKEN: "ignored-token",
-                  T3CODE_AUTO_BOOTSTRAP_PROJECT_FROM_CWD: "false",
-                  T3CODE_LOG_WS_EVENTS: "false",
+                  ASSIST_NO_BROWSER: "false",
+                  ASSIST_AUTH_TOKEN: "ignored-token",
+                  ASSIST_AUTO_BOOTSTRAP_PROJECT_FROM_CWD: "false",
+                  ASSIST_LOG_WS_EVENTS: "false",
                 },
               }),
             ),
@@ -158,12 +158,12 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
   it.effect("uses bootstrap envelope values as fallbacks when flags and env are absent", () =>
     Effect.gen(function* () {
       const { join } = yield* Path.Path;
-      const baseDir = "/tmp/t3-bootstrap-home";
+      const baseDir = "/tmp/assist-bootstrap-home";
       const fd = yield* openBootstrapFd({
         mode: "desktop",
         port: 4888,
         host: "127.0.0.2",
-        t3Home: baseDir,
+        assistHome: baseDir,
         devUrl: "http://127.0.0.1:5173",
         noBrowser: true,
         authToken: "bootstrap-token",
@@ -195,7 +195,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
             ConfigProvider.layer(
               ConfigProvider.fromEnv({
                 env: {
-                  T3CODE_BOOTSTRAP_FD: String(fd),
+                  ASSIST_BOOTSTRAP_FD: String(fd),
                 },
               }),
             ),
@@ -282,7 +282,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
         mode: "desktop",
         port: 4888,
         host: "127.0.0.2",
-        t3Home: "/tmp/t3-bootstrap-home",
+        assistHome: "/tmp/assist-bootstrap-home",
         devUrl: "http://127.0.0.1:5173",
         noBrowser: false,
         authToken: "bootstrap-token",
@@ -312,12 +312,12 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
             ConfigProvider.layer(
               ConfigProvider.fromEnv({
                 env: {
-                  T3CODE_MODE: "web",
-                  T3CODE_BOOTSTRAP_FD: String(fd),
-                  T3CODE_HOME: baseDir,
-                  T3CODE_NO_BROWSER: "true",
-                  T3CODE_AUTO_BOOTSTRAP_PROJECT_FROM_CWD: "true",
-                  T3CODE_LOG_WS_EVENTS: "true",
+                  ASSIST_MODE: "web",
+                  ASSIST_BOOTSTRAP_FD: String(fd),
+                  ASSIST_HOME: baseDir,
+                  ASSIST_NO_BROWSER: "true",
+                  ASSIST_AUTO_BOOTSTRAP_PROJECT_FROM_CWD: "true",
+                  ASSIST_LOG_WS_EVENTS: "true",
                 },
               }),
             ),

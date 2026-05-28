@@ -1,6 +1,6 @@
 ## Working Title
 
-DotCanvas is a workspace-native AI product for project-based knowledge work.
+.assist is a workspace-native AI product for project-based knowledge work.
 
 ## Core Belief
 
@@ -42,7 +42,7 @@ That is the real category.
 
 ## The Deeper Segmentation
 
-DotCanvas should not be defined first by profession.
+.assist should not be defined first by profession.
 
 It should be defined by the shape of the project.
 
@@ -52,11 +52,11 @@ The right question is not:
 
 The better question is:
 
-`What kind of project creates the need for DotCanvas?`
+`What kind of project creates the need for .assist?`
 
-## What Is A DotCanvas Project
+## What Is A .assist Project
 
-A DotCanvas project is a source-heavy, evolving, outcome-driven body of work that must become a reliable artifact.
+A .assist project is a source-heavy, evolving, outcome-driven body of work that must become a reliable artifact.
 
 It usually has:
 
@@ -100,7 +100,7 @@ It is maintaining continuity, preserving trust, and turning scattered material i
 
 ## Product Definition
 
-DotCanvas should feel like a persistent project room for serious work.
+.assist should feel like a persistent project room for serious work.
 
 At the center of the product is not the chat thread.
 
@@ -122,7 +122,7 @@ The user should feel that the project room understands the work, not that a chat
 
 Starting the project is part of the product.
 
-DotCanvas should support at least 3 natural entry modes:
+.assist should support at least 3 natural entry modes:
 
 ### 1. New project from goal
 
@@ -170,7 +170,7 @@ The strongest positioning is still:
 
 More concretely:
 
-`DotCanvas helps people turn a messy project corpus into a reliable deliverable.`
+`.assist helps people turn a messy project corpus into a reliable deliverable.`
 
 This is broad enough to include the right users and narrow enough to exclude generic chat.
 
@@ -195,7 +195,7 @@ But the product should be designed from the start to generalize to adjacent user
 
 ## Experience Principles
 
-DotCanvas should be designed around a few strong principles:
+.assist should be designed around a few strong principles:
 
 ### 1. Project first, chat second
 
@@ -227,7 +227,7 @@ The system should prepare work and structure it well, while the user remains in 
 
 ## Translation Layer
 
-Under the hood, DotCanvas can rely on concepts similar to technical agent products, but the surface language should fit the user's world.
+Under the hood, .assist can rely on concepts similar to technical agent products, but the surface language should fit the user's world.
 
 - `Skills` -> `Playbooks`
 - `Automations` -> `Routines`
@@ -259,7 +259,7 @@ What is still missing is the product layer that turns these capabilities into a 
 
 ## What Success Looks Like
 
-DotCanvas is successful when a user no longer thinks of AI as a separate tool they occasionally consult.
+.assist is successful when a user no longer thinks of AI as a separate tool they occasionally consult.
 
 Instead, they experience it as the operating layer of their project:
 
@@ -275,7 +275,7 @@ At that point, the product has moved beyond chat and become infrastructure for s
 
 ## Non-Goals
 
-DotCanvas should not begin as:
+.assist should not begin as:
 
 - a general-purpose assistant for every kind of task
 - a shallow wrapper around chat with file upload
@@ -287,4 +287,4 @@ The right starting move is depth in one strong project shape, while keeping the 
 
 ## One-Sentence Thesis
 
-DotCanvas brings the project-aware, stateful, action-oriented power of Codex to people working on bounded, source-heavy projects that need to become reliable deliverables.
+.assist brings the project-aware, stateful, action-oriented power of Codex to people working on bounded, source-heavy projects that need to become reliable deliverables.

@@ -4,7 +4,7 @@ import { pickThreadViewSearch } from "../diffRouteSearch";
 import { readNativeApi } from "../nativeApi";
 import { useUiStateStore } from "../uiStateStore";
 
-export function useDotCanvasProjectFlow() {
+export function useAssistProjectFlow() {
   const navigate = useNavigate();
   const setProjectExpanded = useUiStateStore((store) => store.setProjectExpanded);
 
@@ -12,7 +12,7 @@ export function useDotCanvasProjectFlow() {
     async (input: { parentPath: string; projectName: string }) => {
       const api = readNativeApi();
       if (!api) {
-        throw new Error("DotCanvas API is unavailable.");
+        throw new Error(".assist API is unavailable.");
       }
 
       const projectName = input.projectName.trim();

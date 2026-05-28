@@ -139,7 +139,7 @@ function isoAt(offsetSeconds: number): string {
 function createBaseServerConfig(): ServerConfig {
   return {
     cwd: "/repo/project",
-    keybindingsConfigPath: "/repo/project/.t3code-keybindings.json",
+    keybindingsConfigPath: "/repo/project/.assist-keybindings.json",
     keybindings: [],
     issues: [],
     providers: [
@@ -157,7 +157,7 @@ function createBaseServerConfig(): ServerConfig {
     availableEditors: [],
     availableProjectApps: [],
     observability: {
-      logsDirectoryPath: "/repo/project/.t3/logs",
+      logsDirectoryPath: "/repo/project/.assist/logs",
       localTracingEnabled: true,
       otlpTracesEnabled: false,
       otlpMetricsEnabled: false,
@@ -4058,10 +4058,10 @@ describe("ChatView timeline estimator parity (full app)", () => {
             cwd: "/repo/project",
             worktreePath: null,
             env: {
-              T3CODE_PROJECT_ROOT: "/repo/project",
+              ASSIST_PROJECT_ROOT: "/repo/project",
             },
           });
-          expect(openRequest?.env?.T3CODE_WORKTREE_PATH).toBeUndefined();
+          expect(openRequest?.env?.ASSIST_WORKTREE_PATH).toBeUndefined();
         },
         { timeout: 8_000, interval: 16 },
       );
@@ -4105,7 +4105,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
             pullRequest: {
               number: 1359,
               title: "Add thread archiving and settings navigation",
-              url: "https://github.com/pingdotgg/t3code/pull/1359",
+              url: "https://github.com/harounPapi/.assist/pull/1359",
               baseBranch: "main",
               headBranch: "archive-settings-overhaul",
               state: "open",
@@ -4117,7 +4117,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
             pullRequest: {
               number: 1359,
               title: "Add thread archiving and settings navigation",
-              url: "https://github.com/pingdotgg/t3code/pull/1359",
+              url: "https://github.com/harounPapi/.assist/pull/1359",
               baseBranch: "main",
               headBranch: "archive-settings-overhaul",
               state: "open",
@@ -4267,7 +4267,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
               prepareWorktree: {
                 projectCwd: "/repo/project",
                 baseBranch: "main",
-                branch: expect.stringMatching(/^t3code\/[0-9a-f]{8}$/),
+                branch: expect.stringMatching(/^assist\/[0-9a-f]{8}$/),
               },
               runSetupScript: true,
             },
@@ -4651,7 +4651,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
 
   it("shows the confirm archive action after clicking the archive button", async () => {
     localStorage.setItem(
-      "t3code:client-settings:v1",
+      "assist:client-settings:v1",
       JSON.stringify({
         ...DEFAULT_CLIENT_SETTINGS,
         confirmThreadArchive: true,
@@ -4680,7 +4680,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
       await expect.element(confirmButton).toBeInTheDocument();
       await expect.element(confirmButton).toBeVisible();
     } finally {
-      localStorage.removeItem("t3code:client-settings:v1");
+      localStorage.removeItem("assist:client-settings:v1");
       await mounted.cleanup();
     }
   });
@@ -4748,7 +4748,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
             project.id === PROJECT_ID
               ? {
                   ...project,
-                  kind: "dotcanvas",
+                  kind: "assist",
                   bootstrapState: "bootstrapping",
                   bootstrapThreadId: THREAD_ID,
                 }
@@ -4762,7 +4762,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
       await vi.waitFor(
         () => {
           expect(document.body.textContent).toContain(
-            "DotCanvas is shaping the project room before normal work opens up.",
+            ".assist is shaping the project room before normal work opens up.",
           );
         },
         { timeout: 8_000, interval: 16 },
@@ -4788,7 +4788,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
       await vi.waitFor(
         () => {
           expect(document.body.textContent).not.toContain(
-            "DotCanvas is shaping the project room before normal work opens up.",
+            ".assist is shaping the project room before normal work opens up.",
           );
           const updatedButton = document.querySelector<HTMLButtonElement>(
             '[data-testid="new-thread-button"]',

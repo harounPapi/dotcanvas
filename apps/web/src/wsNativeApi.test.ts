@@ -511,7 +511,7 @@ describe("wsNativeApi", () => {
 
   it("forwards project file reads to the project RPC", async () => {
     rpcClientMock.projects.readFile.mockResolvedValue({
-      relativePath: "DotCanvas/memory.md",
+      relativePath: ".assist/memory.md",
       contents: "# Memory\n",
       sizeBytes: 9,
       mtimeMs: 123,
@@ -522,10 +522,10 @@ describe("wsNativeApi", () => {
     await expect(
       api.projects.readFile({
         cwd: "/tmp/project",
-        relativePath: "DotCanvas/memory.md",
+        relativePath: ".assist/memory.md",
       }),
     ).resolves.toEqual({
-      relativePath: "DotCanvas/memory.md",
+      relativePath: ".assist/memory.md",
       contents: "# Memory\n",
       sizeBytes: 9,
       mtimeMs: 123,
@@ -533,7 +533,7 @@ describe("wsNativeApi", () => {
 
     expect(rpcClientMock.projects.readFile).toHaveBeenCalledWith({
       cwd: "/tmp/project",
-      relativePath: "DotCanvas/memory.md",
+      relativePath: ".assist/memory.md",
     });
   });
 
@@ -725,7 +725,7 @@ describe("wsNativeApi", () => {
 
   it("forwards project path stat requests to the project RPC", async () => {
     rpcClientMock.projects.statPath.mockResolvedValue({
-      relativePath: "DotCanvas/project-brief.md",
+      relativePath: ".assist/project-brief.md",
       exists: true,
       kind: "file",
     });
@@ -735,17 +735,17 @@ describe("wsNativeApi", () => {
     await expect(
       api.projects.statPath({
         cwd: "/tmp/project",
-        relativePath: "DotCanvas/project-brief.md",
+        relativePath: ".assist/project-brief.md",
       }),
     ).resolves.toEqual({
-      relativePath: "DotCanvas/project-brief.md",
+      relativePath: ".assist/project-brief.md",
       exists: true,
       kind: "file",
     });
 
     expect(rpcClientMock.projects.statPath).toHaveBeenCalledWith({
       cwd: "/tmp/project",
-      relativePath: "DotCanvas/project-brief.md",
+      relativePath: ".assist/project-brief.md",
     });
   });
 
@@ -756,12 +756,12 @@ describe("wsNativeApi", () => {
     const api = createWsNativeApi();
     await expect(
       api.shell.revealInFileManager({
-        path: "/tmp/project/DotCanvas/memory.md",
+        path: "/tmp/project/.assist/memory.md",
       }),
     ).resolves.toBeUndefined();
 
     expect(rpcClientMock.shell.revealInFileManager).toHaveBeenCalledWith({
-      path: "/tmp/project/DotCanvas/memory.md",
+      path: "/tmp/project/.assist/memory.md",
     });
   });
 

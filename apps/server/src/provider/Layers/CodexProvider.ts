@@ -352,7 +352,7 @@ export const checkCodexProviderStatus = Effect.fn("checkCodexProviderStatus")(fu
         version: null,
         status: "warning",
         auth: { status: "unknown" },
-        message: "Codex is disabled in DotCanvas settings.",
+        message: "Codex is disabled in .assist settings.",
       },
     });
   }

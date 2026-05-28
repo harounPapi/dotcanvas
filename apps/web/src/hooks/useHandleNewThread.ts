@@ -8,7 +8,7 @@ import {
   useComposerDraftStore,
 } from "../composerDraftStore";
 import { pickThreadViewSearch } from "../diffRouteSearch";
-import { isDotCanvasProject, isDotCanvasProjectBootstrapping } from "../dotcanvasProject";
+import { isAssistProject, isAssistProjectBootstrapping } from "../assistProject";
 import { newThreadId } from "../lib/utils";
 import { orderItemsByPreferredIds } from "../components/Sidebar.logic";
 import { useStore } from "../store";
@@ -17,11 +17,11 @@ import { useUiStateStore } from "../uiStateStore";
 
 export function useHandleNewThread() {
   const projects = useStore(
-    useShallow((store) => store.projects.filter((project) => isDotCanvasProject(project))),
+    useShallow((store) => store.projects.filter((project) => isAssistProject(project))),
   );
   const projectIds = useStore(
     useShallow((store) =>
-      store.projects.filter((project) => isDotCanvasProject(project)).map((project) => project.id),
+      store.projects.filter((project) => isAssistProject(project)).map((project) => project.id),
     ),
   );
   const projectOrder = useUiStateStore((store) => store.projectOrder);
@@ -52,7 +52,7 @@ export function useHandleNewThread() {
       },
     ): Promise<void> => {
       const targetProject = projects.find((project) => project.id === projectId);
-      if (isDotCanvasProjectBootstrapping(targetProject)) {
+      if (isAssistProjectBootstrapping(targetProject)) {
         return Promise.resolve();
       }
       const {

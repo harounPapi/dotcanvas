@@ -2,7 +2,7 @@
 
 This note captures the current product idea more concretely:
 
-DotCanvas should be a `Codex harness for project-based knowledge work`.
+.assist should be a `Codex harness for project-based knowledge work`.
 
 That means it should not feel like "Codex, but for non-technical people."
 
@@ -185,7 +185,7 @@ The user should not have to keep re-explaining:
 
 ### Draft Serious Outputs
 
-DotCanvas should produce real work:
+.assist should produce real work:
 
 - sections
 - outlines
@@ -213,7 +213,7 @@ The product should help users trust the draft, not just admire it.
 
 The beginning matters a lot.
 
-DotCanvas should probably not start with:
+.assist should probably not start with:
 
 `What would you like to chat about?`
 
@@ -304,7 +304,7 @@ The user gives a final or near-final artifact:
 - memo
 - deck
 
-Then DotCanvas helps reconstruct the project behind it:
+Then .assist helps reconstruct the project behind it:
 
 - the core themes
 - likely source dependencies
@@ -343,7 +343,7 @@ The user should feel that the project has started to organize itself.
 
 ## The Four Questions The Room Should Always Answer
 
-On entry, DotCanvas should be able to answer:
+On entry, .assist should be able to answer:
 
 1. What is this project?
 2. What do we know?
@@ -372,4 +372,4 @@ The real job is to turn Codex into a native harness for project rooms.
 
 The simplest version of the idea may be:
 
-`DotCanvas is a project room harness built on Codex for people turning a messy corpus into a reliable deliverable.`
+`.assist is a project room harness built on Codex for people turning a messy corpus into a reliable deliverable.`

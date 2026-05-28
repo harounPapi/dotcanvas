@@ -15,7 +15,7 @@ import {
 } from "@t3tools/contracts";
 import { Cache, Cause, Duration, Effect, Equal, Layer, Option, Schema, Stream } from "effect";
 import { makeDrainableWorker } from "@t3tools/shared/DrainableWorker";
-import { buildDotCanvasBootstrapDeveloperInstructions } from "@t3tools/shared/dotcanvas";
+import { buildAssistBootstrapDeveloperInstructions } from "@t3tools/shared/assist";
 
 import { resolveThreadWorkspaceCwd } from "../../checkpointing/Utils.ts";
 import { GitCore } from "../../git/Services/GitCore.ts";
@@ -75,15 +75,15 @@ const serverCommandId = (tag: string): CommandId =>
 const HANDLED_TURN_START_KEY_MAX = 10_000;
 const HANDLED_TURN_START_KEY_TTL = Duration.minutes(30);
 const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";
-const WORKTREE_BRANCH_PREFIX = "t3code";
+const WORKTREE_BRANCH_PREFIX = "assist";
 const TEMP_WORKTREE_BRANCH_PATTERN = new RegExp(`^${WORKTREE_BRANCH_PREFIX}\\/[0-9a-f]{8}$`);
 const DEFAULT_THREAD_TITLE = "New thread";
 
-function isBootstrappingDotCanvasProject(project: {
+function isBootstrappingAssistProject(project: {
   readonly kind: string;
   readonly bootstrapState: string;
 }): boolean {
-  return project.kind === "dotcanvas" && project.bootstrapState === "bootstrapping";
+  return project.kind === "assist" && project.bootstrapState === "bootstrapping";
 }
 
 function canReplaceThreadTitle(currentTitle: string, titleSeed?: string): boolean {
@@ -433,7 +433,7 @@ const make = Effect.gen(function* () {
     const threadProject = yield* resolveProjectForThread(input.threadId);
     const isProjectBootstrapping =
       threadProject.project !== null &&
-      isBootstrappingDotCanvasProject(threadProject.project) &&
+      isBootstrappingAssistProject(threadProject.project) &&
       (threadProject.project.bootstrapThreadId === null ||
         threadProject.project.bootstrapThreadId === input.threadId);
     const providerInteractionMode = isProjectBootstrapping
@@ -443,7 +443,7 @@ const make = Effect.gen(function* () {
       : input.interactionMode;
     const developerInstructions =
       isProjectBootstrapping && threadProject.project !== null
-        ? buildDotCanvasBootstrapDeveloperInstructions({
+        ? buildAssistBootstrapDeveloperInstructions({
             projectTitle: threadProject.project.title,
           })
         : undefined;

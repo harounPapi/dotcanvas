@@ -6,10 +6,10 @@ import {
   ThreadId,
 } from "@t3tools/contracts";
 import {
-  DOTCANVAS_BOOTSTRAP_THREAD_TITLE,
-  DOTCANVAS_CONTEXT_DIRECTORY,
-  parseDotCanvasBootstrapMarkerContents,
-} from "@t3tools/shared/dotcanvas";
+  ASSIST_BOOTSTRAP_THREAD_TITLE,
+  ASSIST_CONTEXT_DIRECTORY,
+  parseAssistBootstrapMarkerContents,
+} from "@t3tools/shared/assist";
 import {
   Data,
   Deferred,
@@ -154,12 +154,12 @@ export const launchStartupHeartbeat = recordStartupHeartbeat.pipe(
   Effect.asVoid,
 );
 
-const readDotCanvasBootstrappedMarker = Effect.fn("readDotCanvasBootstrappedMarker")(function* (
+const readAssistBootstrappedMarker = Effect.fn("readAssistBootstrappedMarker")(function* (
   workspaceRoot: string,
 ) {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const contextRoot = path.join(workspaceRoot, DOTCANVAS_CONTEXT_DIRECTORY);
+  const contextRoot = path.join(workspaceRoot, ASSIST_CONTEXT_DIRECTORY);
   const entries = yield* fileSystem
     .readDirectory(contextRoot, { recursive: false })
     .pipe(Effect.catch(() => Effect.succeed([] as Array<string>)));
@@ -181,7 +181,7 @@ const readDotCanvasBootstrappedMarker = Effect.fn("readDotCanvasBootstrappedMark
     const contents = yield* fileSystem
       .readFileString(absolutePath)
       .pipe(Effect.catch(() => Effect.succeed("")));
-    if (parseDotCanvasBootstrapMarkerContents(contents)) {
+    if (parseAssistBootstrapMarkerContents(contents)) {
       return true;
     }
   }
@@ -189,18 +189,18 @@ const readDotCanvasBootstrappedMarker = Effect.fn("readDotCanvasBootstrappedMark
   return false;
 });
 
-const reconcileDotCanvasBootstrapMarkers = Effect.gen(function* () {
+const reconcileAssistBootstrapMarkers = Effect.gen(function* () {
   const orchestrationEngine = yield* OrchestrationEngineService;
   const readModel = yield* orchestrationEngine.getReadModel();
 
   yield* Effect.forEach(
     readModel.projects,
     Effect.fn(function* (project) {
-      if (project.kind !== "dotcanvas" || project.bootstrapState !== "bootstrapping") {
+      if (project.kind !== "assist" || project.bootstrapState !== "bootstrapping") {
         return;
       }
 
-      const hasBootstrappedMarker = yield* readDotCanvasBootstrappedMarker(project.workspaceRoot);
+      const hasBootstrappedMarker = yield* readAssistBootstrappedMarker(project.workspaceRoot);
       if (!hasBootstrappedMarker) {
         return;
       }
@@ -209,7 +209,7 @@ const reconcileDotCanvasBootstrapMarkers = Effect.gen(function* () {
       yield* orchestrationEngine.dispatch({
         type: "project.bootstrap-state.set",
         commandId: CommandId.makeUnsafe(
-          `startup:dotcanvas-bootstrap-marker:${project.id}:${crypto.randomUUID()}`,
+          `startup:assist-bootstrap-marker:${project.id}:${crypto.randomUUID()}`,
         ),
         projectId: project.id,
         bootstrapState: "ready",
@@ -234,13 +234,11 @@ const autoBootstrapWelcome = Effect.gen(function* () {
       const existingProject = yield* projectionReadModelQuery.getActiveProjectByWorkspaceRoot(
         serverConfig.cwd,
       );
-      const existingDotCanvasProject = Option.isSome(existingProject)
-        ? existingProject.value
-        : null;
+      const existingAssistProject = Option.isSome(existingProject) ? existingProject.value : null;
       const existingProjectValue = Option.isSome(existingProject) ? existingProject.value : null;
-      const isBootstrappingDotCanvasProject =
-        existingDotCanvasProject?.kind === "dotcanvas" &&
-        existingDotCanvasProject.bootstrapState === "bootstrapping";
+      const isBootstrappingAssistProject =
+        existingAssistProject?.kind === "assist" &&
+        existingAssistProject.bootstrapState === "bootstrapping";
       let nextProjectId: ProjectId;
       let nextProjectDefaultModelSelection: ModelSelection;
 
@@ -273,8 +271,7 @@ const autoBootstrapWelcome = Effect.gen(function* () {
         }
         nextProjectId = currentProject.id;
         nextProjectDefaultModelSelection =
-          isBootstrappingDotCanvasProject &&
-          currentProject.defaultModelSelection?.provider !== "codex"
+          isBootstrappingAssistProject && currentProject.defaultModelSelection?.provider !== "codex"
             ? {
                 provider: "codex",
                 model: "gpt-5-codex",
@@ -295,7 +292,7 @@ const autoBootstrapWelcome = Effect.gen(function* () {
           commandId: CommandId.makeUnsafe(crypto.randomUUID()),
           threadId: createdThreadId,
           projectId: nextProjectId,
-          title: isBootstrappingDotCanvasProject ? DOTCANVAS_BOOTSTRAP_THREAD_TITLE : "New thread",
+          title: isBootstrappingAssistProject ? ASSIST_BOOTSTRAP_THREAD_TITLE : "New thread",
           modelSelection: nextProjectDefaultModelSelection,
           interactionMode: DEFAULT_THREAD_INTERACTION_MODE,
           runtimeMode: "full-access",
@@ -303,14 +300,14 @@ const autoBootstrapWelcome = Effect.gen(function* () {
           worktreePath: null,
           createdAt,
         });
-        if (existingDotCanvasProject?.kind === "dotcanvas" && isBootstrappingDotCanvasProject) {
+        if (existingAssistProject?.kind === "assist" && isBootstrappingAssistProject) {
           bootstrapProjectId = nextProjectId;
-          bootstrapThreadId = existingDotCanvasProject.bootstrapThreadId ?? createdThreadId;
+          bootstrapThreadId = existingAssistProject.bootstrapThreadId ?? createdThreadId;
         }
       } else {
-        if (existingDotCanvasProject?.kind === "dotcanvas" && isBootstrappingDotCanvasProject) {
+        if (existingAssistProject?.kind === "assist" && isBootstrappingAssistProject) {
           bootstrapProjectId = nextProjectId;
-          bootstrapThreadId = existingDotCanvasProject.bootstrapThreadId ?? existingThreadId.value;
+          bootstrapThreadId = existingAssistProject.bootstrapThreadId ?? existingThreadId.value;
         }
       }
     });
@@ -405,8 +402,8 @@ const makeServerRuntimeStartup = Effect.gen(function* () {
       orchestrationReactor.start().pipe(Scope.provide(reactorScope)),
     );
 
-    yield* Effect.logDebug("startup phase: reconciling dotcanvas bootstrap markers");
-    yield* runStartupPhase("dotcanvas.bootstrap.reconcile", reconcileDotCanvasBootstrapMarkers);
+    yield* Effect.logDebug("startup phase: reconciling assist bootstrap markers");
+    yield* runStartupPhase("assist.bootstrap.reconcile", reconcileAssistBootstrapMarkers);
 
     yield* Effect.logDebug("startup phase: preparing welcome payload");
     const welcome = yield* runStartupPhase("welcome.prepare", autoBootstrapWelcome);

@@ -72,7 +72,7 @@ import {
 import { useGitStatus } from "../lib/gitStatusState";
 import { readNativeApi } from "../nativeApi";
 import { useComposerDraftStore } from "../composerDraftStore";
-import { isDotCanvasProject, isDotCanvasProjectBootstrapping } from "../dotcanvasProject";
+import { isAssistProject, isAssistProjectBootstrapping } from "../assistProject";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { StartFromScratchProjectDialog } from "./ProjectCreationSurface";
 
@@ -242,7 +242,7 @@ function prStatusIndicator(pr: ThreadPr): PrStatusIndicator | null {
   if (pr.state === "merged") {
     return {
       label: "PR merged",
-      colorClass: "text-violet-600 dark:text-violet-300/90",
+      colorClass: "text-primary",
       tooltip: `#${pr.number} PR merged: ${pr.title}`,
       url: pr.url,
     };
@@ -673,7 +673,7 @@ function SortableProjectItem({
 
 export default function Sidebar() {
   const projects = useStore(
-    useShallow((store) => store.projects.filter((project) => isDotCanvasProject(project))),
+    useShallow((store) => store.projects.filter((project) => isAssistProject(project))),
   );
   const sidebarThreadsById = useStore((store) => store.sidebarThreadsById);
   const threadIdsByProjectId = useStore((store) => store.threadIdsByProjectId);
@@ -1429,7 +1429,7 @@ export default function Sidebar() {
       shouldShowThreadPanel,
       isThreadListExpanded,
     } = renderedProject;
-    const isStartLockedProject = isDotCanvasProjectBootstrapping(project);
+    const isStartLockedProject = isAssistProjectBootstrapping(project);
     return (
       <>
         <div className="group/project-header relative">
@@ -1963,8 +1963,8 @@ export default function Sidebar() {
           <StartFromScratchProjectDialog
             open={addingProject}
             onOpenChange={setAddingProject}
-            title="Create DotCanvas project"
-            description="Choose where the new project should live, name it, and DotCanvas will scaffold the room before regular threads are unlocked."
+            title="Create .assist project"
+            description="Choose where the new project should live, name it, and .assist will scaffold the room before regular threads are unlocked."
             submitLabel="Create project"
           />
 

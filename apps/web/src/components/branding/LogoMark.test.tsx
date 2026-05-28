@@ -5,7 +5,7 @@ import { LogoMark } from "./LogoMark";
 
 describe("LogoMark", () => {
   it("uses shared brand token fills by default", () => {
-    const html = renderToStaticMarkup(<LogoMark title="DotCanvas" />);
+    const html = renderToStaticMarkup(<LogoMark title=".assist" />);
 
     expect(html).toContain('fill="var(--brand-mark-light)"');
     expect(html).toContain('fill="var(--brand-mark-mid)"');
@@ -13,7 +13,7 @@ describe("LogoMark", () => {
   });
 
   it("uses currentColor for the foreground variant", () => {
-    const html = renderToStaticMarkup(<LogoMark variant="foreground" title="DotCanvas" />);
+    const html = renderToStaticMarkup(<LogoMark variant="foreground" title=".assist" />);
 
     expect(html).toContain('fill="currentColor"');
     expect(html).not.toContain("var(--brand-mark-");

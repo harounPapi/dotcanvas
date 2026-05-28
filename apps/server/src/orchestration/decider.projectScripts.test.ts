@@ -20,7 +20,7 @@ const asMessageId = (value: string): MessageId => MessageId.makeUnsafe(value);
 
 async function createReadModelWithProject(input: {
   now: string;
-  kind?: "plain" | "dotcanvas";
+  kind?: "plain" | "assist";
   bootstrapState?: "ready" | "bootstrapping";
 }) {
   return Effect.runPromise(
@@ -53,7 +53,7 @@ async function createReadModelWithProject(input: {
 
 async function createReadModelWithProjectAndThread(input: {
   now: string;
-  kind?: "plain" | "dotcanvas";
+  kind?: "plain" | "assist";
   bootstrapState?: "ready" | "bootstrapping";
   threadInteractionMode?: "default" | "plan";
 }) {
@@ -485,11 +485,11 @@ describe("decider project scripts", () => {
     });
   });
 
-  it("rejects extra threads while a DotCanvas project is still bootstrapping", async () => {
+  it("rejects extra threads while a .assist project is still bootstrapping", async () => {
     const now = new Date().toISOString();
     const readModel = await createReadModelWithProjectAndThread({
       now,
-      kind: "dotcanvas",
+      kind: "assist",
       bootstrapState: "bootstrapping",
       threadInteractionMode: "default",
     });
@@ -521,11 +521,11 @@ describe("decider project scripts", () => {
     expect(exit._tag).toBe("Failure");
   });
 
-  it("rejects non-Codex bootstrap threads while a DotCanvas project is still bootstrapping", async () => {
+  it("rejects non-Codex bootstrap threads while a .assist project is still bootstrapping", async () => {
     const now = new Date().toISOString();
     const readModel = await createReadModelWithProject({
       now,
-      kind: "dotcanvas",
+      kind: "assist",
       bootstrapState: "bootstrapping",
     });
 
@@ -560,7 +560,7 @@ describe("decider project scripts", () => {
     const now = new Date().toISOString();
     const readModel = await createReadModelWithProjectAndThread({
       now,
-      kind: "dotcanvas",
+      kind: "assist",
       bootstrapState: "bootstrapping",
       threadInteractionMode: "default",
     });
@@ -587,7 +587,7 @@ describe("decider project scripts", () => {
     const now = new Date().toISOString();
     const readModel = await createReadModelWithProjectAndThread({
       now,
-      kind: "dotcanvas",
+      kind: "assist",
       bootstrapState: "bootstrapping",
       threadInteractionMode: "default",
     });

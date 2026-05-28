@@ -1,4 +1,4 @@
-# DotCanvas
+# .assist
 
 This note captures the discussion in detail and preserves the assistant responses verbatim in a standalone project note.
 

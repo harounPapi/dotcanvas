@@ -58,7 +58,7 @@ I’d structure the harness around 6 things:
 That feels much more native than “what would you like to ask?”
 
 **How It Helps Them**
-I think DotCanvas helps these users in 5 main ways:
+I think .assist helps these users in 5 main ways:
 
 - `Recover context fast`
   When they come back after 2 days, they should see:
@@ -121,7 +121,7 @@ A good new-project flow might be:
 - writing quality
 - deadline tracking
 
-From that, DotCanvas can create the first room:
+From that, .assist can create the first room:
 
 - project brief
 - suggested workstreams
@@ -154,7 +154,7 @@ I think there are a few strong import modes:
 - memo
 - deck
 
-Then DotCanvas asks:
+Then .assist asks:
 “Do you want me to reconstruct the project behind this?”
 It can infer:
 
@@ -175,7 +175,7 @@ It can infer:
 4. `Import from a question`
    For messy users:
    “I need to decide whether to invest in these 4 startups.”
-   Then DotCanvas creates the room and asks for materials progressively.
+   Then .assist creates the room and asks for materials progressively.
 
 **What The Import Should Produce**
 Import should not just index files. It should produce a usable project state:

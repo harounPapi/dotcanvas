@@ -17,8 +17,8 @@ function readErrorMessage(response: JsonRpcProbeResponse): string | undefined {
 export function buildCodexInitializeParams() {
   return {
     clientInfo: {
-      name: "dotcanvas_desktop",
-      title: "DotCanvas Desktop",
+      name: "assist_desktop",
+      title: ".assist Desktop",
       version: "0.1.0",
     },
     capabilities: {

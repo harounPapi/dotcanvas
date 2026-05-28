@@ -23,18 +23,20 @@ export function Logo({ className, size = "md", variant = "full" }: LogoProps) {
   const config = sizeConfig[size];
 
   if (variant === "compact") {
-    return <LogoMark size={config.icon} title="DotCanvas" {...(className ? { className } : {})} />;
+    return <LogoMark size={config.icon} title=".assist" {...(className ? { className } : {})} />;
   }
 
   return (
     <div className={cn("flex min-w-0 items-center", config.gap, className)}>
-      <LogoMark size={config.icon} title="DotCanvas" />
+      <LogoMark size={config.icon} title=".assist" />
       <div
-        className={cn("flex whitespace-nowrap leading-none text-foreground", config.text)}
+        className={cn(
+          "flex whitespace-nowrap font-extrabold leading-none text-foreground",
+          config.text,
+        )}
         style={logoWordmarkStyle}
       >
-        <span className="font-extrabold">DOT</span>
-        <span className="font-light">CANVAS</span>
+        <span>.assist</span>
       </div>
     </div>
   );

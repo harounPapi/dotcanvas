@@ -31,10 +31,7 @@ import {
   WS_METHODS,
   WsRpcGroup,
 } from "@t3tools/contracts";
-import {
-  DOTCANVAS_BOOTSTRAP_THREAD_TITLE,
-  buildDotCanvasBootstrapFiles,
-} from "@t3tools/shared/dotcanvas";
+import { ASSIST_BOOTSTRAP_THREAD_TITLE, buildAssistBootstrapFiles } from "@t3tools/shared/assist";
 import { clamp } from "effect/Number";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 import { RpcSerialization, RpcServer } from "effect/unstable/rpc";
@@ -671,7 +668,7 @@ const WsRpcLayer = WsRpcGroup.toLayer(
               directoryName: projectName,
             });
 
-            const scaffoldFiles = buildDotCanvasBootstrapFiles({ projectTitle: projectName });
+            const scaffoldFiles = buildAssistBootstrapFiles({ projectTitle: projectName });
             yield* Effect.forEach(
               scaffoldFiles,
               (file) =>
@@ -697,7 +694,7 @@ const WsRpcLayer = WsRpcGroup.toLayer(
               projectId,
               title: projectName,
               workspaceRoot,
-              kind: "dotcanvas",
+              kind: "assist",
               bootstrapState: "bootstrapping",
               bootstrapThreadId: threadId,
               defaultModelSelection: modelSelection,
@@ -709,7 +706,7 @@ const WsRpcLayer = WsRpcGroup.toLayer(
               commandId: serverCommandId("project-bootstrap-start-thread"),
               threadId,
               projectId,
-              title: DOTCANVAS_BOOTSTRAP_THREAD_TITLE,
+              title: ASSIST_BOOTSTRAP_THREAD_TITLE,
               modelSelection,
               runtimeMode: "full-access",
               interactionMode: "default",
@@ -728,9 +725,7 @@ const WsRpcLayer = WsRpcGroup.toLayer(
               (cause) =>
                 new ProjectBootstrapStartError({
                   message:
-                    cause instanceof Error
-                      ? cause.message
-                      : "Failed to bootstrap DotCanvas project.",
+                    cause instanceof Error ? cause.message : "Failed to bootstrap .assist project.",
                   cause,
                 }),
             ),

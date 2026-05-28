@@ -315,7 +315,7 @@ const buildAppUnderTest = (options?: {
       otlpTracesUrl: undefined,
       otlpMetricsUrl: undefined,
       otlpExportIntervalMs: 10_000,
-      otlpServiceName: "t3-server",
+      otlpServiceName: "assist-server",
       mode: "web",
       port: 0,
       host: "127.0.0.1",
@@ -1309,8 +1309,8 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const workspaceDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-ws-project-read-" });
-      yield* fs.makeDirectory(path.join(workspaceDir, "DotCanvas"), { recursive: true });
-      yield* fs.writeFileString(path.join(workspaceDir, "DotCanvas", "memory.md"), "# Memory\n");
+      yield* fs.makeDirectory(path.join(workspaceDir, ".assist"), { recursive: true });
+      yield* fs.writeFileString(path.join(workspaceDir, ".assist", "memory.md"), "# Memory\n");
 
       yield* buildAppUnderTest();
 
@@ -1319,12 +1319,12 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         withWsRpcClient(wsUrl, (client) =>
           client[WS_METHODS.projectsReadFile]({
             cwd: workspaceDir,
-            relativePath: "DotCanvas/memory.md",
+            relativePath: ".assist/memory.md",
           }),
         ),
       );
 
-      assert.equal(response.relativePath, "DotCanvas/memory.md");
+      assert.equal(response.relativePath, ".assist/memory.md");
       assert.equal(response.contents, "# Memory\n");
       assert.equal(response.sizeBytes > 0, true);
       assert.equal(response.mtimeMs > 0, true);
@@ -1338,7 +1338,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       const workspaceDir = yield* fs.makeTempDirectoryScoped({
         prefix: "t3-ws-project-read-errors-",
       });
-      yield* fs.makeDirectory(path.join(workspaceDir, "DotCanvas"), { recursive: true });
+      yield* fs.makeDirectory(path.join(workspaceDir, ".assist"), { recursive: true });
 
       yield* buildAppUnderTest();
 
@@ -1347,14 +1347,14 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         withWsRpcClient(wsUrl, (client) =>
           client[WS_METHODS.projectsReadFile]({
             cwd: workspaceDir,
-            relativePath: "DotCanvas",
+            relativePath: ".assist",
           }),
         ).pipe(Effect.result),
       );
 
       assertTrue(result._tag === "Failure");
       assertTrue(result.failure._tag === "ProjectReadFileError");
-      assertInclude(result.failure.message, "Path is not a file: DotCanvas");
+      assertInclude(result.failure.message, "Path is not a file: .assist");
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 
@@ -1415,8 +1415,8 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const workspaceDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-ws-project-stat-" });
-      yield* fs.makeDirectory(path.join(workspaceDir, "DotCanvas"));
-      yield* fs.writeFileString(path.join(workspaceDir, "DotCanvas", "memory.md"), "# Memory\n");
+      yield* fs.makeDirectory(path.join(workspaceDir, ".assist"));
+      yield* fs.writeFileString(path.join(workspaceDir, ".assist", "memory.md"), "# Memory\n");
 
       yield* buildAppUnderTest();
 
@@ -1425,7 +1425,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         withWsRpcClient(wsUrl, (client) =>
           client[WS_METHODS.projectsStatPath]({
             cwd: workspaceDir,
-            relativePath: "DotCanvas/memory.md",
+            relativePath: ".assist/memory.md",
           }),
         ),
       );
@@ -1433,7 +1433,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         withWsRpcClient(wsUrl, (client) =>
           client[WS_METHODS.projectsStatPath]({
             cwd: workspaceDir,
-            relativePath: "DotCanvas",
+            relativePath: ".assist",
           }),
         ),
       );
@@ -1441,23 +1441,23 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         withWsRpcClient(wsUrl, (client) =>
           client[WS_METHODS.projectsStatPath]({
             cwd: workspaceDir,
-            relativePath: "DotCanvas/project-brief.md",
+            relativePath: ".assist/project-brief.md",
           }),
         ),
       );
 
       assert.deepEqual(fileResponse, {
-        relativePath: "DotCanvas/memory.md",
+        relativePath: ".assist/memory.md",
         exists: true,
         kind: "file",
       });
       assert.deepEqual(directoryResponse, {
-        relativePath: "DotCanvas",
+        relativePath: ".assist",
         exists: true,
         kind: "directory",
       });
       assert.deepEqual(missingResponse, {
-        relativePath: "DotCanvas/project-brief.md",
+        relativePath: ".assist/project-brief.md",
         exists: false,
       });
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
@@ -2394,7 +2394,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         const createWorktree = vi.fn((_: Parameters<GitCoreShape["createWorktree"]>[0]) =>
           Effect.succeed({
             worktree: {
-              branch: "t3code/bootstrap-branch",
+              branch: "assist/bootstrap-branch",
               path: "/tmp/bootstrap-worktree",
             },
           }),
@@ -2460,7 +2460,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
                 prepareWorktree: {
                   projectCwd: "/tmp/project",
                   baseBranch: "main",
-                  branch: "t3code/bootstrap-branch",
+                  branch: "assist/bootstrap-branch",
                 },
                 runSetupScript: true,
               },
@@ -2483,7 +2483,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         assert.deepEqual(createWorktree.mock.calls[0]?.[0], {
           cwd: "/tmp/project",
           branch: "main",
-          newBranch: "t3code/bootstrap-branch",
+          newBranch: "assist/bootstrap-branch",
           path: null,
         });
         assert.deepEqual(runForThread.mock.calls[0]?.[0], {
@@ -2515,7 +2515,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       const createWorktree = vi.fn((_: Parameters<GitCoreShape["createWorktree"]>[0]) =>
         Effect.succeed({
           worktree: {
-            branch: "t3code/bootstrap-branch",
+            branch: "assist/bootstrap-branch",
             path: "/tmp/bootstrap-worktree",
           },
         }),
@@ -2575,7 +2575,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
               prepareWorktree: {
                 projectCwd: "/tmp/project",
                 baseBranch: "main",
-                branch: "t3code/bootstrap-branch",
+                branch: "assist/bootstrap-branch",
               },
               runSetupScript: true,
             },
@@ -2608,7 +2608,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       const createWorktree = vi.fn((_: Parameters<GitCoreShape["createWorktree"]>[0]) =>
         Effect.succeed({
           worktree: {
-            branch: "t3code/bootstrap-branch",
+            branch: "assist/bootstrap-branch",
             path: "/tmp/bootstrap-worktree",
           },
         }),
@@ -2691,7 +2691,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
               prepareWorktree: {
                 projectCwd: "/tmp/project",
                 baseBranch: "main",
-                branch: "t3code/bootstrap-branch",
+                branch: "assist/bootstrap-branch",
               },
               runSetupScript: true,
             },
@@ -2774,7 +2774,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
               prepareWorktree: {
                 projectCwd: "/tmp/project",
                 baseBranch: "main",
-                branch: "t3code/bootstrap-branch",
+                branch: "assist/bootstrap-branch",
               },
               runSetupScript: false,
             },

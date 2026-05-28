@@ -359,8 +359,8 @@ export function resolveThreadStatusPill(input: {
   if (hasProposedPlanReadyPrompt) {
     return {
       label: "Plan Ready",
-      colorClass: "text-violet-600 dark:text-violet-300/90",
-      dotClass: "bg-violet-500 dark:bg-violet-300/90",
+      colorClass: "text-primary",
+      dotClass: "bg-primary",
       pulse: false,
     };
   }

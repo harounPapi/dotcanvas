@@ -36,6 +36,7 @@ import Migration0020 from "./Migrations/020_ProjectionThreadMessageCapabilityMen
 import Migration0021 from "./Migrations/021_ProjectionProjectsDotCanvasState.ts";
 import Migration0022 from "./Migrations/022_ProjectionProjectsBootstrapThread.ts";
 import Migration0023 from "./Migrations/023_LegacyBootstrapCompatibility.ts";
+import Migration0024 from "./Migrations/024_ProjectKindAssist.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -71,6 +72,7 @@ export const migrationEntries = [
   [21, "ProjectionProjectsDotCanvasState", Migration0021],
   [22, "ProjectionProjectsBootstrapThread", Migration0022],
   [23, "LegacyBootstrapCompatibility", Migration0023],
+  [24, "ProjectKindAssist", Migration0024],
 ] as const;
 
 export const makeMigrationLoader = (throughId?: number) =>

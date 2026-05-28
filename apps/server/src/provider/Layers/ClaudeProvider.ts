@@ -463,7 +463,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
         version: null,
         status: "warning",
         auth: { status: "unknown" },
-        message: "Claude is disabled in DotCanvas settings.",
+        message: "Claude is disabled in .assist settings.",
       },
     });
   }

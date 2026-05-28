@@ -1,4 +1,4 @@
-import { Option, Schema, SchemaIssue, Struct } from "effect";
+import { Option, Schema, SchemaGetter, SchemaIssue, Struct } from "effect";
 import { ClaudeModelOptions, CodexModelOptions } from "./model";
 import { ComposerCapabilityMention } from "./capabilities";
 import {
@@ -138,7 +138,14 @@ export const ProjectScript = Schema.Struct({
 });
 export type ProjectScript = typeof ProjectScript.Type;
 
-export const ProjectKind = Schema.Literals(["plain", "dotcanvas"]);
+const CanonicalProjectKind = Schema.Literals(["plain", "assist"]);
+const PersistedProjectKind = Schema.Literals(["plain", "assist", "dotcanvas"]);
+export const ProjectKind = PersistedProjectKind.pipe(
+  Schema.decodeTo(CanonicalProjectKind, {
+    decode: SchemaGetter.transform((kind) => (kind === "dotcanvas" ? "assist" : kind)),
+    encode: SchemaGetter.transform((kind) => kind),
+  }),
+);
 export type ProjectKind = typeof ProjectKind.Type;
 export const DEFAULT_PROJECT_KIND: ProjectKind = "plain";
 

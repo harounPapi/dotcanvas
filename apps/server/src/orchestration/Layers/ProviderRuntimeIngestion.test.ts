@@ -22,10 +22,10 @@ import {
   TurnId,
 } from "@t3tools/contracts";
 import {
-  DOTCANVAS_BOOTSTRAP_MARKER_RELATIVE_PATH,
-  DOTCANVAS_REQUIRED_SCAFFOLD_PATHS,
-  parseDotCanvasBootstrapMarkerContents,
-} from "@t3tools/shared/dotcanvas";
+  ASSIST_BOOTSTRAP_MARKER_RELATIVE_PATH,
+  ASSIST_REQUIRED_SCAFFOLD_PATHS,
+  parseAssistBootstrapMarkerContents,
+} from "@t3tools/shared/assist";
 import { Effect, Exit, Layer, ManagedRuntime, PubSub, Scope, Stream } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -196,8 +196,8 @@ type ProviderRuntimeTestProposedPlan = ProviderRuntimeTestThread["proposedPlans"
 type ProviderRuntimeTestActivity = ProviderRuntimeTestThread["activities"][number];
 type ProviderRuntimeTestCheckpoint = ProviderRuntimeTestThread["checkpoints"][number];
 
-function writeDotCanvasScaffold(workspaceRoot: string): void {
-  for (const requirement of DOTCANVAS_REQUIRED_SCAFFOLD_PATHS) {
+function writeAssistScaffold(workspaceRoot: string): void {
+  for (const requirement of ASSIST_REQUIRED_SCAFFOLD_PATHS) {
     const absolutePath = path.join(workspaceRoot, requirement.relativePath);
     fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
     if (requirement.kind === "directory") {
@@ -239,7 +239,7 @@ describe("ProviderRuntimeIngestion", () => {
   async function createHarness(options?: {
     serverSettings?: Partial<ServerSettings>;
     project?: {
-      kind?: "plain" | "dotcanvas";
+      kind?: "plain" | "assist";
       bootstrapState?: "ready" | "bootstrapping";
       bootstrapThreadId?: ThreadId | null;
     };
@@ -1151,7 +1151,7 @@ describe("ProviderRuntimeIngestion", () => {
   it("completes bootstrap from the persisted turn row after the pending start is cleared", async () => {
     const harness = await createHarness({
       project: {
-        kind: "dotcanvas",
+        kind: "assist",
         bootstrapState: "bootstrapping",
         bootstrapThreadId: asThreadId("thread-1"),
       },
@@ -1161,7 +1161,7 @@ describe("ProviderRuntimeIngestion", () => {
     const targetTurnId = asTurnId("turn-bootstrap-apply");
     const createdAt = new Date().toISOString();
 
-    writeDotCanvasScaffold(harness.workspaceRoot);
+    writeAssistScaffold(harness.workspaceRoot);
 
     harness.emit({
       type: "turn.proposed.completed",
@@ -1268,9 +1268,9 @@ describe("ProviderRuntimeIngestion", () => {
     );
     expect(thread.session?.status).toBe("ready");
     expect(
-      parseDotCanvasBootstrapMarkerContents(
+      parseAssistBootstrapMarkerContents(
         fs.readFileSync(
-          path.join(harness.workspaceRoot, DOTCANVAS_BOOTSTRAP_MARKER_RELATIVE_PATH),
+          path.join(harness.workspaceRoot, ASSIST_BOOTSTRAP_MARKER_RELATIVE_PATH),
           "utf8",
         ),
       ),
@@ -2457,7 +2457,7 @@ describe("ProviderRuntimeIngestion", () => {
   it("normalizes bootstrap-thread plan tasks into bootstrap activity labels", async () => {
     const harness = await createHarness({
       project: {
-        kind: "dotcanvas",
+        kind: "assist",
         bootstrapState: "bootstrapping",
         bootstrapThreadId: asThreadId("thread-1"),
       },

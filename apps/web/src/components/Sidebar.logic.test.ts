@@ -565,12 +565,12 @@ describe("resolveProjectStatusIndicator", () => {
         },
         {
           label: "Plan Ready",
-          colorClass: "text-violet-600",
-          dotClass: "bg-violet-500",
+          colorClass: "text-primary",
+          dotClass: "bg-primary",
           pulse: false,
         },
       ]),
-    ).toMatchObject({ label: "Plan Ready", dotClass: "bg-violet-500" });
+    ).toMatchObject({ label: "Plan Ready", dotClass: "bg-primary" });
   });
 });
 

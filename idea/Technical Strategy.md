@@ -1,6 +1,6 @@
 ## Decision Summary
 
-The fastest path to a working DotCanvas MVP is still to build on top of `t3code`, but to do so intentionally as a `product shell accelerator`, not as the final architecture.
+The fastest path to a working .assist MVP is still to build on top of `t3code`, but to do so intentionally as a `product shell accelerator`, not as the final architecture.
 
 The core runtime should still be `Codex app-server`.
 
@@ -16,7 +16,7 @@ This remains the best tradeoff between speed and long-term correctness.
 
 ## Why This Is Still The Right Near-Term Move
 
-DotCanvas is not trying to invent a new agent runtime.
+.assist is not trying to invent a new agent runtime.
 
 It is trying to package an existing agent runtime into a new kind of project workflow.
 
@@ -46,7 +46,7 @@ It is better understood as:
 
 Build on `t3code` now.
 
-Build toward a Codex-native DotCanvas later.
+Build toward a Codex-native .assist later.
 
 ### What this means in practice
 
@@ -60,13 +60,13 @@ For the MVP:
 
 For the longer term:
 
-- gradually decouple DotCanvas from `t3code` implementation details
+- gradually decouple .assist from `t3code` implementation details
 - retain `Codex app-server` as the stable backend engine
 - own the product layer completely
 
 ## Architecture Principle
 
-DotCanvas should be thought of as:
+.assist should be thought of as:
 
 `Codex runtime + project harness + project room UX + domain playbooks + artifact workflows`
 
@@ -134,7 +134,7 @@ This is the layer that turns a generic runtime into a native project room.
 
 ### 4. Workspace Layer
 
-Introduce a DotCanvas-specific project model on top of the existing folder concept.
+Introduce a .assist-specific project model on top of the existing folder concept.
 
 Each project should have:
 
@@ -150,7 +150,7 @@ Example structure:
 ```text
 Project Folder/
   AGENTS.md
-  DotCanvas/
+  .assist/
     project-brief.md
     corpus-map.md
     memory.md
@@ -184,7 +184,7 @@ The intake flow should produce:
 - likely outputs
 - obvious gaps and next steps
 
-This is one of the biggest ways DotCanvas will feel different from generic chat.
+This is one of the biggest ways .assist will feel different from generic chat.
 
 ### 6. Playbook Layer
 
@@ -197,13 +197,13 @@ Examples:
 - `pdf`
 - `spreadsheet`
 - `slides`
-- custom DotCanvas playbooks like `financial-review`, `literature-review`, `proposal-compliance`, `investment-memo`, `market-study`, `business-plan`
+- custom .assist playbooks like `financial-review`, `literature-review`, `proposal-compliance`, `investment-memo`, `market-study`, `business-plan`
 
 On the product surface, these should be presented as `Playbooks`, but under the hood they can remain skills.
 
 ### 7. Artifact Layer
 
-DotCanvas should treat the deliverable as a first-class object.
+.assist should treat the deliverable as a first-class object.
 
 Common artifact types:
 
@@ -236,7 +236,7 @@ The expensive parts to rebuild are not just the UI. They are:
 - orchestration and projection logic
 - desktop app packaging and runtime integration
 
-These are real engineering tasks and not where DotCanvas creates differentiation first.
+These are real engineering tasks and not where .assist creates differentiation first.
 
 The product edge will come from:
 
@@ -276,7 +276,7 @@ Do not carry the complexity of a multi-provider product in the MVP.
 
 Keep the boundary between:
 
-- DotCanvas product code
+- .assist product code
 - `t3code` shell and orchestration code
 - Codex runtime integration
 
@@ -343,9 +343,9 @@ Do not anchor the product around:
 - multi-provider abstraction unless needed
 - software repo assumptions as the main product model
 
-## What DotCanvas Must Add
+## What .assist Must Add
 
-To become a real product rather than a themed fork, DotCanvas must add:
+To become a real product rather than a themed fork, .assist must add:
 
 - project intake and import flows
 - project metadata and project room structure
@@ -416,7 +416,7 @@ People working on bounded, source-heavy projects with real deliverables.
 
 Goal:
 
-Get a working DotCanvas shell quickly by forking `t3code`.
+Get a working .assist shell quickly by forking `t3code`.
 
 Main work:
 

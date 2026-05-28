@@ -17,10 +17,10 @@ import {
 import { Cache, Cause, Duration, Effect, FileSystem, Layer, Option, Path, Stream } from "effect";
 import { makeDrainableWorker } from "@t3tools/shared/DrainableWorker";
 import {
-  buildDotCanvasBootstrapMarkerContents,
-  DOTCANVAS_BOOTSTRAP_MARKER_RELATIVE_PATH,
-  DOTCANVAS_REQUIRED_SCAFFOLD_PATHS,
-} from "@t3tools/shared/dotcanvas";
+  buildAssistBootstrapMarkerContents,
+  ASSIST_BOOTSTRAP_MARKER_RELATIVE_PATH,
+  ASSIST_REQUIRED_SCAFFOLD_PATHS,
+} from "@t3tools/shared/assist";
 
 import { ProviderService } from "../../provider/Services/ProviderService.ts";
 import { ProjectionTurnRepository } from "../../persistence/Services/ProjectionTurns.ts";
@@ -45,7 +45,7 @@ const BUFFERED_MESSAGE_TEXT_BY_MESSAGE_ID_TTL = Duration.minutes(120);
 const BUFFERED_PROPOSED_PLAN_BY_ID_CACHE_CAPACITY = 10_000;
 const BUFFERED_PROPOSED_PLAN_BY_ID_TTL = Duration.minutes(120);
 const MAX_BUFFERED_ASSISTANT_CHARS = 24_000;
-const STRICT_PROVIDER_LIFECYCLE_GUARD = process.env.T3CODE_STRICT_PROVIDER_LIFECYCLE_GUARD !== "0";
+const STRICT_PROVIDER_LIFECYCLE_GUARD = process.env.ASSIST_STRICT_PROVIDER_LIFECYCLE_GUARD !== "0";
 
 type TurnStartRequestedDomainEvent = Extract<
   OrchestrationEvent,
@@ -941,7 +941,7 @@ const make = Effect.fn("make")(function* () {
   }) {
     const missingPaths: string[] = [];
 
-    for (const requirement of DOTCANVAS_REQUIRED_SCAFFOLD_PATHS) {
+    for (const requirement of ASSIST_REQUIRED_SCAFFOLD_PATHS) {
       const absolutePath = path.resolve(input.workspaceRoot, requirement.relativePath);
       const stat = yield* fileSystem
         .stat(absolutePath)
@@ -972,7 +972,7 @@ const make = Effect.fn("make")(function* () {
       const project = readModel.projects.find((entry) => entry.id === thread.projectId);
       if (
         !project ||
-        project.kind !== "dotcanvas" ||
+        project.kind !== "assist" ||
         project.bootstrapState !== "bootstrapping" ||
         (project.bootstrapThreadId !== null && project.bootstrapThreadId !== thread.id)
       ) {
@@ -1004,8 +1004,8 @@ const make = Effect.fn("make")(function* () {
       }
 
       yield* fileSystem.writeFileString(
-        path.resolve(project.workspaceRoot, DOTCANVAS_BOOTSTRAP_MARKER_RELATIVE_PATH),
-        buildDotCanvasBootstrapMarkerContents({ bootstrapped: true }),
+        path.resolve(project.workspaceRoot, ASSIST_BOOTSTRAP_MARKER_RELATIVE_PATH),
+        buildAssistBootstrapMarkerContents({ bootstrapped: true }),
       );
 
       yield* orchestrationEngine.dispatch({
@@ -1026,7 +1026,7 @@ const make = Effect.fn("make")(function* () {
     if (!thread) return;
     const project = readModel.projects.find((entry) => entry.id === thread.projectId) ?? null;
     const isBootstrapThread =
-      project?.kind === "dotcanvas" &&
+      project?.kind === "assist" &&
       project.bootstrapState === "bootstrapping" &&
       (project.bootstrapThreadId === null || project.bootstrapThreadId === thread.id);
 

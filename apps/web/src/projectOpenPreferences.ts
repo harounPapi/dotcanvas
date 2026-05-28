@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 
 export type ProjectOpenTargetId = EditorId | ProjectAppId;
 
-const LAST_PROJECT_OPEN_TARGET_KEY = "t3code:last-project-open-target";
+const LAST_PROJECT_OPEN_TARGET_KEY = "assist:last-project-open-target";
 
 function readStoredProjectOpenTarget(): ProjectOpenTargetId | null {
   if (typeof window === "undefined") {

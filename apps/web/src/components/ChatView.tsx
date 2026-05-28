@@ -118,7 +118,7 @@ import { SidebarTrigger } from "./ui/sidebar";
 import { ProjectCreationSurface } from "./ProjectCreationSurface";
 import { newCommandId, newMessageId, newThreadId } from "~/lib/utils";
 import { readNativeApi } from "~/nativeApi";
-import { isDotCanvasBootstrapThread, isDotCanvasProjectBootstrapping } from "../dotcanvasProject";
+import { isAssistBootstrapThread, isAssistProjectBootstrapping } from "../assistProject";
 import {
   getProviderModelCapabilities,
   getProviderModels,
@@ -1001,8 +1001,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
   }, [activeThreadId, existingOpenTerminalThreadIds, terminalState.terminalOpen]);
   const latestTurnSettled = isLatestTurnSettled(activeLatestTurn, activeThread?.session ?? null);
   const activeProject = useProjectById(activeThread?.projectId);
-  const isBootstrapLockedProject = isDotCanvasProjectBootstrapping(activeProject);
-  const isBootstrapThreadActive = isDotCanvasBootstrapThread({
+  const isBootstrapLockedProject = isAssistProjectBootstrapping(activeProject);
+  const isBootstrapThreadActive = isAssistBootstrapThread({
     thread: activeThread,
     project: activeProject,
   });
@@ -1032,8 +1032,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
       if (!activeProject) {
         throw new Error("No active project is available for this pull request.");
       }
-      if (isDotCanvasProjectBootstrapping(activeProject)) {
-        throw new Error("Finish DotCanvas bootstrap before creating additional threads.");
+      if (isAssistProjectBootstrapping(activeProject)) {
+        throw new Error("Finish .assist bootstrap before creating additional threads.");
       }
       const storedDraftThread = getDraftThreadByProjectId(activeProject.id);
       if (storedDraftThread) {
@@ -3674,7 +3674,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       !activeProject ||
       !activeProposedPlan ||
       planFollowUpMode !== "plan" ||
-      isDotCanvasProjectBootstrapping(activeProject) ||
+      isAssistProjectBootstrapping(activeProject) ||
       !isServerThread ||
       isSendBusy ||
       isConnecting ||
@@ -4311,11 +4311,11 @@ export default function ChatView({ threadId }: ChatViewProps) {
                     Bootstrapping
                   </Badge>
                   <span className="text-sm font-medium text-foreground">
-                    DotCanvas is shaping the project room before normal work opens up.
+                    .assist is shaping the project room before normal work opens up.
                   </span>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  This first thread is the bootstrap thread. DotCanvas should understand the goal,
+                  This first thread is the bootstrap thread. .assist should understand the goal,
                   inspect the workspace, propose the root organization, update `AGENTS.md` and
                   `.context/`, and automatically unlock the project once the approved bootstrap plan
                   succeeds.

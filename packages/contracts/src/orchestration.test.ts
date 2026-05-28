@@ -126,6 +126,24 @@ it.effect("decodes historical project.created payloads with a default provider",
   }),
 );
 
+it.effect("decodes legacy dotcanvas project kind as assist", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeProjectCreatedPayload({
+      projectId: "project-1",
+      title: "Project Title",
+      workspaceRoot: "/tmp/workspace",
+      kind: "dotcanvas",
+      bootstrapState: DEFAULT_PROJECT_BOOTSTRAP_STATE,
+      bootstrapThreadId: null,
+      defaultModelSelection: null,
+      scripts: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.kind, "assist");
+  }),
+);
+
 it.effect("decodes plan interaction mode on thread.turn.start", () =>
   Effect.gen(function* () {
     const parsed = yield* decodeThreadTurnStartCommand({
@@ -303,7 +321,7 @@ it.effect("accepts bootstrap metadata in thread.turn.start", () =>
         prepareWorktree: {
           projectCwd: "/tmp/workspace",
           baseBranch: "main",
-          branch: "t3code/example",
+          branch: "assist/example",
         },
         runSetupScript: true,
       },

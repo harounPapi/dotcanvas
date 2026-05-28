@@ -27,7 +27,7 @@ const makeTempDir = Effect.fn(function* (opts?: { prefix?: string; git?: boolean
   const fileSystem = yield* FileSystem.FileSystem;
   const gitCore = yield* GitCore;
   const dir = yield* fileSystem.makeTempDirectoryScoped({
-    prefix: opts?.prefix ?? "t3code-workspace-entries-",
+    prefix: opts?.prefix ?? "assist-workspace-entries-",
   });
   if (opts?.git) {
     yield* gitCore.initRepo({ cwd: dir });
@@ -82,7 +82,7 @@ it.layer(TestLayer)("WorkspaceEntriesLive", (it) => {
   describe("listDirectory", () => {
     it.effect("lists direct child entries and keeps directories ahead of files", () =>
       Effect.gen(function* () {
-        const cwd = yield* makeTempDir({ prefix: "t3code-workspace-list-root-" });
+        const cwd = yield* makeTempDir({ prefix: "assist-workspace-list-root-" });
         yield* writeTextFile(cwd, "src/components/Composer.tsx");
         yield* writeTextFile(cwd, "docs/brief.md");
         yield* writeTextFile(cwd, "README.md");
@@ -102,7 +102,7 @@ it.layer(TestLayer)("WorkspaceEntriesLive", (it) => {
 
     it.effect("lists nested directory contents relative to the workspace root", () =>
       Effect.gen(function* () {
-        const cwd = yield* makeTempDir({ prefix: "t3code-workspace-list-nested-" });
+        const cwd = yield* makeTempDir({ prefix: "assist-workspace-list-nested-" });
         yield* writeTextFile(cwd, "src/components/Composer.tsx");
         yield* writeTextFile(cwd, "src/index.ts");
 
@@ -123,7 +123,7 @@ it.layer(TestLayer)("WorkspaceEntriesLive", (it) => {
 
     it.effect("fails for missing and non-directory paths", () =>
       Effect.gen(function* () {
-        const cwd = yield* makeTempDir({ prefix: "t3code-workspace-list-errors-" });
+        const cwd = yield* makeTempDir({ prefix: "assist-workspace-list-errors-" });
         yield* writeTextFile(cwd, "src/index.ts");
 
         const missingError = yield* listWorkspaceDirectory({
@@ -142,7 +142,7 @@ it.layer(TestLayer)("WorkspaceEntriesLive", (it) => {
 
     it.effect("filters ignored and gitignored direct child entries", () =>
       Effect.gen(function* () {
-        const cwd = yield* makeTempDir({ prefix: "t3code-workspace-list-ignore-", git: true });
+        const cwd = yield* makeTempDir({ prefix: "assist-workspace-list-ignore-", git: true });
         yield* writeTextFile(cwd, ".gitignore", "ignored.txt\n");
         yield* writeTextFile(cwd, "src/keep.ts", "export {};");
         yield* writeTextFile(cwd, "ignored.txt", "ignore me");
@@ -183,7 +183,7 @@ it.layer(TestLayer)("WorkspaceEntriesLive", (it) => {
 
     it.effect("filters and ranks entries by query", () =>
       Effect.gen(function* () {
-        const cwd = yield* makeTempDir({ prefix: "t3code-workspace-query-" });
+        const cwd = yield* makeTempDir({ prefix: "assist-workspace-query-" });
         yield* writeTextFile(cwd, "src/components/Composer.tsx");
         yield* writeTextFile(cwd, "src/components/composePrompt.ts");
         yield* writeTextFile(cwd, "docs/composition.md");
@@ -200,7 +200,7 @@ it.layer(TestLayer)("WorkspaceEntriesLive", (it) => {
 
     it.effect("supports fuzzy subsequence queries for composer path search", () =>
       Effect.gen(function* () {
-        const cwd = yield* makeTempDir({ prefix: "t3code-workspace-fuzzy-query-" });
+        const cwd = yield* makeTempDir({ prefix: "assist-workspace-fuzzy-query-" });
         yield* writeTextFile(cwd, "src/components/Composer.tsx");
         yield* writeTextFile(cwd, "src/components/composePrompt.ts");
         yield* writeTextFile(cwd, "docs/composition.md");
@@ -216,7 +216,7 @@ it.layer(TestLayer)("WorkspaceEntriesLive", (it) => {
 
     it.effect("tracks truncation without sorting every fuzzy match", () =>
       Effect.gen(function* () {
-        const cwd = yield* makeTempDir({ prefix: "t3code-workspace-fuzzy-limit-" });
+        const cwd = yield* makeTempDir({ prefix: "assist-workspace-fuzzy-limit-" });
         yield* writeTextFile(cwd, "src/components/Composer.tsx");
         yield* writeTextFile(cwd, "src/components/composePrompt.ts");
         yield* writeTextFile(cwd, "docs/composition.md");
@@ -230,7 +230,7 @@ it.layer(TestLayer)("WorkspaceEntriesLive", (it) => {
 
     it.effect("excludes gitignored paths for git repositories", () =>
       Effect.gen(function* () {
-        const cwd = yield* makeTempDir({ prefix: "t3code-workspace-gitignore-", git: true });
+        const cwd = yield* makeTempDir({ prefix: "assist-workspace-gitignore-", git: true });
         yield* writeTextFile(cwd, ".gitignore", ".convex/\nconvex/\nignored.txt\n");
         yield* writeTextFile(cwd, "src/keep.ts", "export {};");
         yield* writeTextFile(cwd, "ignored.txt", "ignore me");
@@ -251,7 +251,7 @@ it.layer(TestLayer)("WorkspaceEntriesLive", (it) => {
     it.effect("excludes tracked paths that match ignore rules", () =>
       Effect.gen(function* () {
         const cwd = yield* makeTempDir({
-          prefix: "t3code-workspace-tracked-gitignore-",
+          prefix: "assist-workspace-tracked-gitignore-",
           git: true,
         });
         yield* writeTextFile(cwd, ".convex/local-storage/data.json", "{}");
@@ -270,7 +270,7 @@ it.layer(TestLayer)("WorkspaceEntriesLive", (it) => {
 
     it.effect("excludes .convex in non-git workspaces", () =>
       Effect.gen(function* () {
-        const cwd = yield* makeTempDir({ prefix: "t3code-workspace-non-git-convex-" });
+        const cwd = yield* makeTempDir({ prefix: "assist-workspace-non-git-convex-" });
         yield* writeTextFile(cwd, ".convex/local-storage/data.json", "{}");
         yield* writeTextFile(cwd, "src/keep.ts", "export {};");
 
@@ -285,7 +285,7 @@ it.layer(TestLayer)("WorkspaceEntriesLive", (it) => {
 
     it.effect("deduplicates concurrent index builds for the same cwd", () =>
       Effect.gen(function* () {
-        const cwd = yield* makeTempDir({ prefix: "t3code-workspace-concurrent-build-" });
+        const cwd = yield* makeTempDir({ prefix: "assist-workspace-concurrent-build-" });
         yield* writeTextFile(cwd, "src/components/Composer.tsx");
 
         let rootReadCount = 0;
@@ -315,7 +315,7 @@ it.layer(TestLayer)("WorkspaceEntriesLive", (it) => {
 
     it.effect("limits concurrent directory reads while walking the filesystem", () =>
       Effect.gen(function* () {
-        const cwd = yield* makeTempDir({ prefix: "t3code-workspace-read-concurrency-" });
+        const cwd = yield* makeTempDir({ prefix: "assist-workspace-read-concurrency-" });
         yield* Effect.forEach(
           Array.from({ length: 80 }, (_, index) => index),
           (index) => writeTextFile(cwd, `group-${index}/entry-${index}.ts`, "export {};"),

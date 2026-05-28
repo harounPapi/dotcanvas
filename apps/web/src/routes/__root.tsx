@@ -49,7 +49,7 @@ import { collectActiveTerminalThreadIds } from "../lib/terminalStateCleanup";
 import { deriveOrchestrationBatchEffects } from "../orchestrationEventEffects";
 import { createOrchestrationRecoveryCoordinator } from "../orchestrationRecovery";
 import { deriveReplayRetryDecision } from "../orchestrationRecovery";
-import { isDotCanvasProjectBootstrapping } from "../dotcanvasProject";
+import { isAssistProjectBootstrapping } from "../assistProject";
 import { getWsRpcClient } from "~/wsRpcClient";
 
 export const Route = createRootRouteWithContext<{
@@ -247,7 +247,7 @@ function EventRouter() {
       const bootstrapProject = useStore
         .getState()
         .projects.find((project) => project.id === payload.bootstrapProjectId);
-      if (!isDotCanvasProjectBootstrapping(bootstrapProject)) {
+      if (!isAssistProjectBootstrapping(bootstrapProject)) {
         return;
       }
       setProjectExpanded(payload.bootstrapProjectId, true);

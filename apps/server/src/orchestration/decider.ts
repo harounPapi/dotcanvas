@@ -189,19 +189,19 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         if (bootstrapThreadId !== null && command.threadId !== bootstrapThreadId) {
           return yield* invariantDetail(
             command.type,
-            `Bootstrapping DotCanvas project '${project.id}' can only create its designated bootstrap thread.`,
+            `Bootstrapping .assist project '${project.id}' can only create its designated bootstrap thread.`,
           );
         }
         if (command.modelSelection.provider !== "codex") {
           return yield* invariantDetail(
             command.type,
-            `Bootstrapping DotCanvas project '${project.id}' can only create a Codex-backed bootstrap thread.`,
+            `Bootstrapping .assist project '${project.id}' can only create a Codex-backed bootstrap thread.`,
           );
         }
         if (listActiveThreadsByProjectId(readModel, project.id).length > 0) {
           return yield* invariantDetail(
             command.type,
-            `Bootstrapping DotCanvas project '${project.id}' cannot create additional threads until bootstrap is finished.`,
+            `Bootstrapping .assist project '${project.id}' cannot create additional threads until bootstrap is finished.`,
           );
         }
       }
@@ -243,7 +243,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       if (isProjectBootstrapping(project) && bootstrapThreadId === thread.id) {
         return yield* invariantDetail(
           command.type,
-          `Cannot delete the bootstrap thread while DotCanvas project '${project.id}' is still bootstrapping.`,
+          `Cannot delete the bootstrap thread while .assist project '${project.id}' is still bootstrapping.`,
         );
       }
       const occurredAt = nowIso();
@@ -277,7 +277,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       if (isProjectBootstrapping(project) && bootstrapThreadId === thread.id) {
         return yield* invariantDetail(
           command.type,
-          `Cannot archive the bootstrap thread while DotCanvas project '${project.id}' is still bootstrapping.`,
+          `Cannot archive the bootstrap thread while .assist project '${project.id}' is still bootstrapping.`,
         );
       }
       const occurredAt = nowIso();
@@ -337,7 +337,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       ) {
         return yield* invariantDetail(
           command.type,
-          `Bootstrapping DotCanvas project '${project.id}' must stay on Codex until bootstrap is finished.`,
+          `Bootstrapping .assist project '${project.id}' must stay on Codex until bootstrap is finished.`,
         );
       }
       const occurredAt = nowIso();
@@ -400,7 +400,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       if (isProjectBootstrapping(project) && bootstrapThreadId === thread.id) {
         return yield* invariantDetail(
           command.type,
-          `Cannot change thread mode while DotCanvas project '${project.id}' is still bootstrapping.`,
+          `Cannot change thread mode while .assist project '${project.id}' is still bootstrapping.`,
         );
       }
       const occurredAt = nowIso();
@@ -437,25 +437,25 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         if (command.bootstrap?.createThread) {
           return yield* invariantDetail(
             command.type,
-            `Bootstrapping DotCanvas project '${targetProject.id}' cannot create additional threads until bootstrap is finished.`,
+            `Bootstrapping .assist project '${targetProject.id}' cannot create additional threads until bootstrap is finished.`,
           );
         }
         if (effectiveModelSelection.provider !== "codex") {
           return yield* invariantDetail(
             command.type,
-            `Bootstrapping DotCanvas project '${targetProject.id}' must stay on Codex until bootstrap is finished.`,
+            `Bootstrapping .assist project '${targetProject.id}' must stay on Codex until bootstrap is finished.`,
           );
         }
         if (bootstrapThreadId === null || targetThread.id !== bootstrapThreadId) {
           return yield* invariantDetail(
             command.type,
-            `Bootstrapping DotCanvas project '${targetProject.id}' only accepts turns on its bootstrap thread.`,
+            `Bootstrapping .assist project '${targetProject.id}' only accepts turns on its bootstrap thread.`,
           );
         }
         if (command.interactionMode !== "default") {
           return yield* invariantDetail(
             command.type,
-            `DotCanvas bootstrap turns must use the default thread interaction mode; bootstrap planning is injected by the provider layer.`,
+            `.assist bootstrap turns must use the default thread interaction mode; bootstrap planning is injected by the provider layer.`,
           );
         }
       }

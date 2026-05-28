@@ -4,7 +4,7 @@ This note reframes the persona discussion around the thing that matters most:
 
 `the definition of a project`
 
-The core insight is that DotCanvas should probably not be defined first by job title.
+The core insight is that .assist should probably not be defined first by job title.
 
 It should be defined by a certain kind of work:
 
@@ -26,17 +26,17 @@ But they may be doing the same kind of work.
 
 The right question is not:
 
-`Who is the one perfect job title for DotCanvas?`
+`Who is the one perfect job title for .assist?`
 
 The better question is:
 
-`What kind of project creates the need for DotCanvas?`
+`What kind of project creates the need for .assist?`
 
 Once we define that clearly, the personas become much easier to recognize.
 
-## What Is A DotCanvas Project
+## What Is A .assist Project
 
-A DotCanvas project is not just a folder.
+A .assist project is not just a folder.
 
 It is a living body of work that has:
 
@@ -50,11 +50,11 @@ It is a living body of work that has:
 
 In one sentence:
 
-`A DotCanvas project is a source-heavy, evolving, outcome-driven body of work that must become a reliable artifact.`
+`A .assist project is a source-heavy, evolving, outcome-driven body of work that must become a reliable artifact.`
 
 ## What Makes Something A Strong Fit
 
-DotCanvas is strongest when the user keeps asking questions like:
+.assist is strongest when the user keeps asking questions like:
 
 - What do I already know?
 - What changed since last time?
@@ -68,7 +68,7 @@ That is very different from generic chat.
 
 Generic chat is good for isolated questions.
 
-DotCanvas should be for sustained project work.
+.assist should be for sustained project work.
 
 ## What The Project Room Should Hold
 
@@ -105,7 +105,7 @@ The harness should not change very much.
 
 ## A Simple Definition Of The User
 
-DotCanvas is for people who are trying to turn a project corpus into a trustworthy output.
+.assist is for people who are trying to turn a project corpus into a trustworthy output.
 
 That is the unifying definition.
 
@@ -347,9 +347,9 @@ More specifically, they all need help with:
 
 That shared structure matters more than the label on their LinkedIn profile.
 
-## What DotCanvas Should Probably Not Be
+## What .assist Should Probably Not Be
 
-This also helps define what DotCanvas is not for.
+This also helps define what .assist is not for.
 
 It is probably not primarily for:
 
@@ -364,17 +364,17 @@ The product gets stronger as the project gets more real.
 
 The best framing may be:
 
-`DotCanvas is for project-based knowledge work.`
+`.assist is for project-based knowledge work.`
 
 More specifically:
 
-`DotCanvas helps people turn a messy project corpus into a reliable deliverable.`
+`.assist helps people turn a messy project corpus into a reliable deliverable.`
 
 That framing is broad enough to include the right users, but still sharp enough to exclude generic chat use cases.
 
 ## Project Entry Implication
 
-Because the project is the real object, DotCanvas should support a few natural ways of entering:
+Because the project is the real object, .assist should support a few natural ways of entering:
 
 - start a new project from a goal
 - import an existing folder or bundle
@@ -415,7 +415,7 @@ The primary wedge may still be financial consultants, auditors, and adjacent eva
 
 But the deeper truth is larger:
 
-DotCanvas should serve anyone whose work looks like:
+.assist should serve anyone whose work looks like:
 
 - gather material
 - understand it
@@ -431,6 +431,6 @@ That is the real category.
 
 Here is the simplest version worth keeping:
 
-`A DotCanvas user is someone working on a bounded project with a real corpus, real stakes, and a real deliverable.`
+`A .assist user is someone working on a bounded project with a real corpus, real stakes, and a real deliverable.`
 
 And the project room exists to make that work feel continuous, grounded, and operational instead of fragile and constantly restarted.

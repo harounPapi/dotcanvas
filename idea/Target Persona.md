@@ -1,6 +1,6 @@
 ## Primary Wedge
 
-The best initial wedge for DotCanvas is still a project-based professional working inside a structured corpus and responsible for producing a high-trust deliverable under time pressure.
+The best initial wedge for .assist is still a project-based professional working inside a structured corpus and responsible for producing a high-trust deliverable under time pressure.
 
 The clearest first version of that wedge is:
 
@@ -44,7 +44,7 @@ They share one project shape.
 
 ## Shared Project Shape
 
-The users DotCanvas serves best usually have:
+The users .assist serves best usually have:
 
 - a real corpus of material
 - a meaningful output
@@ -147,7 +147,7 @@ It is remembering what matters, spotting what changed, keeping assumptions strai
 
 A normal chat tool can answer isolated questions, but it does not really hold the project.
 
-DotCanvas would help by turning the project into an active room with:
+.assist would help by turning the project into an active room with:
 
 - a clear brief
 - a map of the source corpus
@@ -203,4 +203,4 @@ But the real target user is broader:
 
 `someone working on a bounded project with a real corpus, real stakes, and a real deliverable`
 
-That is the user DotCanvas should be built for.
+That is the user .assist should be built for.

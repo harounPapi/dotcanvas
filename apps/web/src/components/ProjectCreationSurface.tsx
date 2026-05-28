@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { FilePlus2Icon, FolderSearchIcon, HistoryIcon, FolderIcon } from "~/components/ui/icons";
 import { isElectron } from "../env";
 import { readNativeApi } from "../nativeApi";
-import { useDotCanvasProjectFlow } from "../hooks/useDotCanvasProjectFlow";
+import { useAssistProjectFlow } from "../hooks/useAssistProjectFlow";
 import { LogoMark } from "./branding/LogoMark";
 import { Button } from "./ui/button";
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card";
@@ -24,7 +24,7 @@ export function StartFromScratchProjectForm(props: {
   onCancel?: (() => void) | undefined;
   onCreated?: (() => void) | undefined;
 }) {
-  const { createProjectFromScratch } = useDotCanvasProjectFlow();
+  const { createProjectFromScratch } = useAssistProjectFlow();
   const [parentPath, setParentPath] = useState("");
   const [projectName, setProjectName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
@@ -59,8 +59,7 @@ export function StartFromScratchProjectForm(props: {
       await createProjectFromScratch({ parentPath, projectName });
       props.onCreated?.();
     } catch (cause) {
-      const message =
-        cause instanceof Error ? cause.message : "Failed to create DotCanvas project.";
+      const message = cause instanceof Error ? cause.message : "Failed to create .assist project.";
       setError(message);
       toastManager.add({
         type: "error",
@@ -126,7 +125,7 @@ export function StartFromScratchProjectForm(props: {
 
         <div className="flex flex-col items-start justify-between gap-3 border-t pt-4 sm:flex-row sm:items-center">
           <p className="max-w-md text-xs text-muted-foreground">
-            DotCanvas will create the workspace, write `AGENTS.md` plus `.context/`, and open a
+            .assist will create the workspace, write `AGENTS.md` plus `.context/`, and open a
             bootstrap thread that understands the goal before reorganizing the project.
           </p>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
@@ -169,7 +168,7 @@ export function StartFromScratchProjectDialog(props: {
           <DialogTitle>{props.title ?? "Start from scratch"}</DialogTitle>
           <DialogDescription>
             {props.description ??
-              "Create a new DotCanvas project folder and let the agent bootstrap the room through a real first conversation, an explicit bootstrap plan, and approved workspace organization."}
+              "Create a new .assist project folder and let the agent bootstrap the room through a real first conversation, an explicit bootstrap plan, and approved workspace organization."}
           </DialogDescription>
         </DialogHeader>
         <DialogPanel scrollFade={false}>
@@ -191,13 +190,13 @@ export function ProjectCreationSurface() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-10">
       <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
-        <LogoMark size="lg" className="text-foreground" title="DotCanvas" variant="foreground" />
+        <LogoMark size="lg" className="text-foreground" title=".assist" variant="foreground" />
         <h1 className="mt-4 text-3xl font-semibold tracking-tight text-foreground">
           Start a project room, not a blank chat.
         </h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          DotCanvas is designed for source-heavy projects that need to become a reliable
-          deliverable. Choose how you want to begin.
+          .assist is designed for source-heavy projects that need to become a reliable deliverable.
+          Choose how you want to begin.
         </p>
       </div>
 
@@ -211,7 +210,7 @@ export function ProjectCreationSurface() {
               <CardTitle className="text-base">Start from scratch</CardTitle>
             </div>
             <CardDescription>
-              Create a brand-new workspace and let DotCanvas bootstrap the room around the real
+              Create a brand-new workspace and let .assist bootstrap the room around the real
               project goal, context, and root structure.
             </CardDescription>
           </CardHeader>
@@ -229,7 +228,7 @@ export function ProjectCreationSurface() {
               <CardTitle className="text-base">Import existing project</CardTitle>
             </div>
             <CardDescription>
-              Bring an existing workspace and let DotCanvas reconstruct the room around the real
+              Bring an existing workspace and let .assist reconstruct the room around the real
               project brief, context, and next structure.
             </CardDescription>
           </CardHeader>
@@ -249,7 +248,7 @@ export function ProjectCreationSurface() {
               <CardTitle className="text-base">Resume old project</CardTitle>
             </div>
             <CardDescription>
-              Re-open a stalled workspace and let DotCanvas rebuild the room around unresolved work,
+              Re-open a stalled workspace and let .assist rebuild the room around unresolved work,
               recovered context, and next steps.
             </CardDescription>
           </CardHeader>

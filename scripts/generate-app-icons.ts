@@ -242,7 +242,7 @@ async function copyGeneratedAsset(sourceRelativePath: string, destinationRelativ
 }
 
 async function main() {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "dotcanvas-icons-"));
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "assist-icons-"));
 
   try {
     for (const output of PNG_OUTPUTS) {
@@ -260,7 +260,7 @@ async function main() {
       await copyGeneratedAsset(output.sourceRelativePath, output.destinationRelativePath);
     }
 
-    process.stdout.write("Generated DotCanvas icon assets.\n");
+    process.stdout.write("Generated .assist icon assets.\n");
   } finally {
     await fs.rm(tempDir, { force: true, recursive: true });
   }

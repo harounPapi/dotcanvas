@@ -1,25 +1,25 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  DOTCANVAS_AGENTS_RELATIVE_PATH,
-  DOTCANVAS_MEMORY_RELATIVE_PATH,
-  DOTCANVAS_OPEN_QUESTIONS_RELATIVE_PATH,
-  DOTCANVAS_PROJECT_OVERVIEW_RELATIVE_PATH,
-  DOTCANVAS_REQUIRED_SCAFFOLD_PATHS,
-  DOTCANVAS_WORKSPACE_MAP_RELATIVE_PATH,
-  isDotCanvasBootstrapThread,
-  readDotCanvasScaffoldReady,
-} from "./dotcanvasProject";
+  ASSIST_AGENTS_RELATIVE_PATH,
+  ASSIST_MEMORY_RELATIVE_PATH,
+  ASSIST_OPEN_QUESTIONS_RELATIVE_PATH,
+  ASSIST_PROJECT_OVERVIEW_RELATIVE_PATH,
+  ASSIST_REQUIRED_SCAFFOLD_PATHS,
+  ASSIST_WORKSPACE_MAP_RELATIVE_PATH,
+  isAssistBootstrapThread,
+  readAssistScaffoldReady,
+} from "./assistProject";
 
-describe("readDotCanvasScaffoldReady", () => {
+describe("readAssistScaffoldReady", () => {
   it("returns true only when every required scaffold path exists with the expected kind", async () => {
     const statPath = vi.fn(async ({ relativePath }: { cwd: string; relativePath: string }) => {
       switch (relativePath) {
-        case DOTCANVAS_AGENTS_RELATIVE_PATH:
-        case DOTCANVAS_PROJECT_OVERVIEW_RELATIVE_PATH:
-        case DOTCANVAS_MEMORY_RELATIVE_PATH:
-        case DOTCANVAS_WORKSPACE_MAP_RELATIVE_PATH:
-        case DOTCANVAS_OPEN_QUESTIONS_RELATIVE_PATH:
+        case ASSIST_AGENTS_RELATIVE_PATH:
+        case ASSIST_PROJECT_OVERVIEW_RELATIVE_PATH:
+        case ASSIST_MEMORY_RELATIVE_PATH:
+        case ASSIST_WORKSPACE_MAP_RELATIVE_PATH:
+        case ASSIST_OPEN_QUESTIONS_RELATIVE_PATH:
           return { relativePath, exists: true, kind: "file" as const };
         default:
           return { relativePath, exists: false };
@@ -27,24 +27,24 @@ describe("readDotCanvasScaffoldReady", () => {
     });
 
     await expect(
-      readDotCanvasScaffoldReady({
+      readAssistScaffoldReady({
         cwd: "/tmp/project",
         statPath,
       }),
     ).resolves.toBe(true);
-    expect(statPath).toHaveBeenCalledTimes(DOTCANVAS_REQUIRED_SCAFFOLD_PATHS.length);
+    expect(statPath).toHaveBeenCalledTimes(ASSIST_REQUIRED_SCAFFOLD_PATHS.length);
   });
 
   it("returns false when any scaffold path is missing or has the wrong kind", async () => {
     const statPath = vi.fn(async ({ relativePath }: { cwd: string; relativePath: string }) => {
-      if (relativePath === DOTCANVAS_WORKSPACE_MAP_RELATIVE_PATH) {
+      if (relativePath === ASSIST_WORKSPACE_MAP_RELATIVE_PATH) {
         return { relativePath, exists: true, kind: "directory" as const };
       }
       return { relativePath, exists: true, kind: "file" as const };
     });
 
     await expect(
-      readDotCanvasScaffoldReady({
+      readAssistScaffoldReady({
         cwd: "/tmp/project",
         statPath,
       }),
@@ -52,13 +52,13 @@ describe("readDotCanvasScaffoldReady", () => {
   });
 });
 
-describe("isDotCanvasBootstrapThread", () => {
+describe("isAssistBootstrapThread", () => {
   it("matches the designated bootstrap thread", () => {
     expect(
-      isDotCanvasBootstrapThread({
+      isAssistBootstrapThread({
         thread: { id: "thread-1" as never },
         project: {
-          kind: "dotcanvas" as never,
+          kind: "assist" as never,
           bootstrapState: "bootstrapping" as never,
           bootstrapThreadId: "thread-1" as never,
         },
@@ -68,10 +68,10 @@ describe("isDotCanvasBootstrapThread", () => {
 
   it("returns false when the project does not point at the thread", () => {
     expect(
-      isDotCanvasBootstrapThread({
+      isAssistBootstrapThread({
         thread: { id: "thread-2" as never },
         project: {
-          kind: "dotcanvas" as never,
+          kind: "assist" as never,
           bootstrapState: "bootstrapping" as never,
           bootstrapThreadId: "thread-1" as never,
         },
@@ -81,10 +81,10 @@ describe("isDotCanvasBootstrapThread", () => {
 
   it("returns false once the bootstrap project is ready", () => {
     expect(
-      isDotCanvasBootstrapThread({
+      isAssistBootstrapThread({
         thread: { id: "thread-1" as never },
         project: {
-          kind: "dotcanvas" as never,
+          kind: "assist" as never,
           bootstrapState: "ready" as never,
           bootstrapThreadId: "thread-1" as never,
         },

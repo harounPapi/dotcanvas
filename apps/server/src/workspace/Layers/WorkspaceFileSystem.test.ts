@@ -32,7 +32,7 @@ const TestLayer = Layer.empty.pipe(
 const makeTempDir = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   return yield* fileSystem.makeTempDirectoryScoped({
-    prefix: "t3code-workspace-files-",
+    prefix: "assist-workspace-files-",
   });
 });
 
@@ -65,10 +65,10 @@ it.layer(TestLayer)("WorkspaceFileSystemLive", (it) => {
 
         const result = yield* workspaceFileSystem.createDirectory({
           parentPath,
-          directoryName: "dotcanvas-project",
+          directoryName: "assist-project",
         });
 
-        expect(result.workspaceRoot).toBe(path.join(parentPath, "dotcanvas-project"));
+        expect(result.workspaceRoot).toBe(path.join(parentPath, "assist-project"));
         const created = yield* fileSystem.stat(result.workspaceRoot).pipe(Effect.orDie);
         expect(created.type).toBe("Directory");
       }),
@@ -81,13 +81,13 @@ it.layer(TestLayer)("WorkspaceFileSystemLive", (it) => {
 
         yield* workspaceFileSystem.createDirectory({
           parentPath,
-          directoryName: "dotcanvas-project",
+          directoryName: "assist-project",
         });
 
         const error = yield* workspaceFileSystem
           .createDirectory({
             parentPath,
-            directoryName: "dotcanvas-project",
+            directoryName: "assist-project",
           })
           .pipe(Effect.flip);
 
@@ -240,24 +240,24 @@ it.layer(TestLayer)("WorkspaceFileSystemLive", (it) => {
         const workspaceFileSystem = yield* WorkspaceFileSystem;
         const cwd = yield* makeTempDir;
 
-        yield* writeTextFile(cwd, "DotCanvas/project-brief.md", "# Brief\n");
+        yield* writeTextFile(cwd, ".assist/project-brief.md", "# Brief\n");
 
         const fileStat = yield* workspaceFileSystem.statPath({
           cwd,
-          relativePath: "DotCanvas/project-brief.md",
+          relativePath: ".assist/project-brief.md",
         });
         const directoryStat = yield* workspaceFileSystem.statPath({
           cwd,
-          relativePath: "DotCanvas",
+          relativePath: ".assist",
         });
 
         expect(fileStat).toEqual({
-          relativePath: "DotCanvas/project-brief.md",
+          relativePath: ".assist/project-brief.md",
           exists: true,
           kind: "file",
         });
         expect(directoryStat).toEqual({
-          relativePath: "DotCanvas",
+          relativePath: ".assist",
           exists: true,
           kind: "directory",
         });
@@ -271,11 +271,11 @@ it.layer(TestLayer)("WorkspaceFileSystemLive", (it) => {
 
         const stat = yield* workspaceFileSystem.statPath({
           cwd,
-          relativePath: "DotCanvas/memory.md",
+          relativePath: ".assist/memory.md",
         });
 
         expect(stat).toEqual({
-          relativePath: "DotCanvas/memory.md",
+          relativePath: ".assist/memory.md",
           exists: false,
         });
       }),

@@ -52,6 +52,10 @@
       "types": "./src/projectScripts.ts",
       "import": "./src/projectScripts.ts"
     },
+    "./assist": {
+      "types": "./src/assist.ts",
+      "import": "./src/assist.ts"
+    },
     "./dotcanvas": {
       "types": "./src/dotcanvas.ts",
       "import": "./src/dotcanvas.ts"
